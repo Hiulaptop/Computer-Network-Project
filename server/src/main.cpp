@@ -124,6 +124,7 @@ int main(int argc, char *argv[])
     serverAddr.sin_addr.s_addr = INADDR_ANY;
     serverAddr.sin_port = htons(8080); // Listen on port 8080
 
+
     // Bind the socket to the address and port
     if (bind(serverSocket, (sockaddr *)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
     {
@@ -134,6 +135,12 @@ int main(int argc, char *argv[])
     }
 
     // Start listening for incoming connections
+    if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) {
+        std::cerr << "Listen failed!" << std::endl;
+        closesocket(serverSocket);
+        WSACleanup();
+        return 1;
+    }
     std::cout << "Server is listening on port 8080..." << std::endl;
 
     // Vector to store client thread handles
@@ -151,6 +158,8 @@ int main(int argc, char *argv[])
             continue;
         }
 
+        std::cout << "to Here1\n";
+
         // Create a new thread to handle the client
         HANDLE client_thread = CreateThread(
             NULL,                 // Default security attributes
@@ -166,6 +175,7 @@ int main(int argc, char *argv[])
             closesocket(clientSocket); // Clean up socket on thread creation failure
             continue;                  // Handle error
         }
+        std::cout << "to Here2\n";
 
         clients.push_back(client_thread); // Store thread handle
         idx++;
