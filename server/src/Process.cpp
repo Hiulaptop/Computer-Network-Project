@@ -1,4 +1,4 @@
-#include"../include/Process.hpp"
+#include <Process.hpp>
 
 ULONGLONG FileTimeToULL(const FILETIME& FT) {
     ULARGE_INTEGER res;
