@@ -3,15 +3,26 @@
 #include <ws2tcpip.h>
 #pragma comment(lib, "Ws2_32.lib")
 
+struct PacketHeader {
+    uint16_t request_id;
+    uint8_t  request_type;
+    uint8_t  request_key;
+};
 
-// Function to send a connect request to the server
-void send_connect_request(SOCKET clientSocket) {
-    // Example connect request message
-    const char *request = "Hello, Server!";
-    send(clientSocket, request, strlen(request), 0);
+void send_connect_request(const SOCKET clientSocket) {
+    PacketHeader header{};
+    header.request_id = 1;
+    header.request_type = 1;
+    header.request_key = 1;
+
+    char request[] = "Hello world";
+    uint32_t packetSize = (sizeof(PacketHeader) + sizeof(request) - 1);
+    send(clientSocket, reinterpret_cast<const char *>(&packetSize), sizeof(packetSize), 0);
+    send(clientSocket, reinterpret_cast<const char *>(&header), sizeof(header), 0);
+    send(clientSocket, request, sizeof(request) - 1, 0);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
         std::cerr << "Failed to initialize Winsock!" << std::endl;
@@ -25,12 +36,12 @@ int main() {
         return 1;
     }
 
-    sockaddr_in serverAddr;
+    sockaddr_in serverAddr{};
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(8080);
-    serverAddr.sin_addr.s_addr = inet_addr("192.168.100.166"); // Server address
+    serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1"); // Server address
 
-    if (connect(clientSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+    if (connect(clientSocket, reinterpret_cast<sockaddr *>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
         std::cerr << "Failed to connect to server!" << std::endl;
         closesocket(clientSocket);
         WSACleanup();

@@ -1,4 +1,7 @@
+#include <fstream>
 #include <Process.hpp>
+#include <psapi.h>
+#include <tlhelp32.h>
 
 ULONGLONG FileTimeToULL(const FILETIME& FT) {
     ULARGE_INTEGER res;
@@ -95,6 +98,34 @@ void Process::PrintProcessList(const std::vector<ProcessInfo>& ProcessList) {
         outFile << L"Priority   : " << Process.PriorityClass << L"\n";
         outFile << L"Session ID : " << Process.SessionID << L"\n";
     }
+}
+
+void Process::HandleRequest(SOCKET client_socket, const PacketHeader &header) {
+    if (header.request_key != REQUEST_KEY) {
+        std::cerr << "Invalid request key." << std::endl;
+        return;
+    }
+    if (header.request_type == 0x01) {
+        auto ProcessList = ListProcess();
+        PrintProcessList(ProcessList);
+        std::string response = "Process list saved to processes.txt";
+        send(client_socket, response.c_str(), response.size(), 0);
+    } else if (header.request_type == 0x02) {
+        int PID;
+        recv(client_socket, reinterpret_cast<char*>(&PID), sizeof(PID), 0);
+        bool result = TerminateProcessByID(PID);
+        std::string response = result ? "Process terminated successfully." : "Failed to terminate process.";
+        send(client_socket, response.c_str(), response.size(), 0);
+    } else if (header.request_type == 0x03) {
+        char filePath[260];
+        recv(client_socket, filePath, sizeof(filePath), 0);
+        bool result = OpenFileByPath(filePath);
+        std::string response = result ? "File opened successfully." : "Failed to open file.";
+        send(client_socket, response.c_str(), response.size(), 0);
+    } else {
+        std::cerr << "Unknown request type." << std::endl;
+    }
+    closesocket(client_socket);
 }
 
 bool Process::OpenFileByPath(const std::string& FilePath){
