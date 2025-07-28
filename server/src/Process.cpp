@@ -11,7 +11,7 @@ ULONGLONG FileTimeToULL(const FILETIME& FT) {
 }
 
 std::wstring ConvertTCHARToWString(TCHAR* tchar_str) {
-    int len = MultiByteToWideChar(CP_ACP, 0, tchar_str, -1, NULL, 0);
+    int len = MultiByteToWideChar(CP_ACP, 0, tchar_str, -1, nullptr, 0);
     std::wstring wstr(len, L'\0');
     MultiByteToWideChar(CP_ACP, 0, tchar_str, -1, &wstr[0], len);
     return wstr;
@@ -19,7 +19,7 @@ std::wstring ConvertTCHARToWString(TCHAR* tchar_str) {
 
 
 std::wstring StringToWString(const std::string& str) {
-    int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, NULL, 0);
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
     std::wstring wstr(size_needed, 0);
     MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &wstr[0], size_needed);
     return wstr;
@@ -48,7 +48,7 @@ std::vector<ProcessInfo> Process::ListProcess(){
             HANDLE HProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, Process.PID);
             if(HProcess){
                 TCHAR Path[MAX_PATH];
-                if(GetModuleFileNameEx(HProcess,NULL,Path,MAX_PATH))
+                if(GetModuleFileNameEx(HProcess,nullptr,Path,MAX_PATH))
                     Process.FullPath = ConvertTCHARToWString(Path);
 
                 FILETIME createTime, exitTime, kernelTime, userTime;
@@ -130,11 +130,11 @@ void Process::HandleRequest(SOCKET client_socket, const PacketHeader &header) {
 
 bool Process::OpenFileByPath(const std::string& FilePath){
     HINSTANCE res = ShellExecuteA(
-        NULL,
+        nullptr,
         "open",
         FilePath.c_str(),
-        NULL,
-        NULL,
+        nullptr,
+        nullptr,
         SW_SHOWNORMAL
     );
     if((INT_PTR)res > 32)

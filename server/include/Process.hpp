@@ -5,6 +5,7 @@
 #include <string>
 
 #include "RequestHandler.hpp"
+#include "Response.hpp"
 
 struct ProcessInfo {
     DWORD PID; //ProcessID
