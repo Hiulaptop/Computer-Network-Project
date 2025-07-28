@@ -1,4 +1,7 @@
+#include <fstream>
 #include <Process.hpp>
+#include <psapi.h>
+#include <tlhelp32.h>
 
 ULONGLONG FileTimeToULL(const FILETIME& FT) {
     ULARGE_INTEGER res;
@@ -8,7 +11,7 @@ ULONGLONG FileTimeToULL(const FILETIME& FT) {
 }
 
 std::wstring ConvertTCHARToWString(TCHAR* tchar_str) {
-    int len = MultiByteToWideChar(CP_ACP, 0, tchar_str, -1, NULL, 0);
+    int len = MultiByteToWideChar(CP_ACP, 0, tchar_str, -1, nullptr, 0);
     std::wstring wstr(len, L'\0');
     MultiByteToWideChar(CP_ACP, 0, tchar_str, -1, &wstr[0], len);
     return wstr;
@@ -16,7 +19,7 @@ std::wstring ConvertTCHARToWString(TCHAR* tchar_str) {
 
 
 std::wstring StringToWString(const std::string& str) {
-    int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, NULL, 0);
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
     std::wstring wstr(size_needed, 0);
     MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &wstr[0], size_needed);
     return wstr;
@@ -45,7 +48,7 @@ std::vector<ProcessInfo> Process::ListProcess(){
             HANDLE HProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, Process.PID);
             if(HProcess){
                 TCHAR Path[MAX_PATH];
-                if(GetModuleFileNameEx(HProcess,NULL,Path,MAX_PATH))
+                if(GetModuleFileNameEx(HProcess,nullptr,Path,MAX_PATH))
                     Process.FullPath = ConvertTCHARToWString(Path);
 
                 FILETIME createTime, exitTime, kernelTime, userTime;
@@ -97,13 +100,41 @@ void Process::PrintProcessList(const std::vector<ProcessInfo>& ProcessList) {
     }
 }
 
+void Process::HandleRequest(SOCKET client_socket, const PacketHeader &header) {
+    if (header.request_key != REQUEST_KEY) {
+        std::cerr << "Invalid request key." << std::endl;
+        return;
+    }
+    if (header.request_type == 0x01) {
+        auto ProcessList = ListProcess();
+        PrintProcessList(ProcessList);
+        std::string response = "Process list saved to processes.txt";
+        send(client_socket, response.c_str(), response.size(), 0);
+    } else if (header.request_type == 0x02) {
+        int PID;
+        recv(client_socket, reinterpret_cast<char*>(&PID), sizeof(PID), 0);
+        bool result = TerminateProcessByID(PID);
+        std::string response = result ? "Process terminated successfully." : "Failed to terminate process.";
+        send(client_socket, response.c_str(), response.size(), 0);
+    } else if (header.request_type == 0x03) {
+        char filePath[260];
+        recv(client_socket, filePath, sizeof(filePath), 0);
+        bool result = OpenFileByPath(filePath);
+        std::string response = result ? "File opened successfully." : "Failed to open file.";
+        send(client_socket, response.c_str(), response.size(), 0);
+    } else {
+        std::cerr << "Unknown request type." << std::endl;
+    }
+    closesocket(client_socket);
+}
+
 bool Process::OpenFileByPath(const std::string& FilePath){
     HINSTANCE res = ShellExecuteA(
-        NULL,
+        nullptr,
         "open",
         FilePath.c_str(),
-        NULL,
-        NULL,
+        nullptr,
+        nullptr,
         SW_SHOWNORMAL
     );
     if((INT_PTR)res > 32)

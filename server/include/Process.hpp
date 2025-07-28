@@ -1,14 +1,11 @@
 #pragma once
 #include <windows.h>
-#include <tlhelp32.h>
-#include <psapi.h>
-#include <tchar.h>
 #include <iostream>
 #include <vector>
 #include <string>
-#include<fstream>
 
-#pragma comment(lib, "Psapi.lib")
+#include "RequestHandler.hpp"
+#include "Response.hpp"
 
 struct ProcessInfo {
     DWORD PID; //ProcessID
@@ -23,10 +20,13 @@ struct ProcessInfo {
     DWORD SessionID;
 };
 
-class Process{
+class Process: public FeatureHandler{
+    constexpr static int REQUEST_KEY = 0x01;
 public:
     static bool TerminateProcessByID(const int& PID);
     static bool OpenFileByPath(const std::string& FilePath);
     static std::vector<ProcessInfo> ListProcess();
     static void PrintProcessList(const std::vector<ProcessInfo>& ProcessList);
+
+    void HandleRequest(SOCKET client_socket, const PacketHeader &header) override;
 };
