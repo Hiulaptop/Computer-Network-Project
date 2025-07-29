@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <windows.h>
 
 constexpr int FEATURE_COUNT = 1;
 
