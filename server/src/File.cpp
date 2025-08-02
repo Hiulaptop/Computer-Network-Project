@@ -2,7 +2,6 @@
 
 
 void File::HandleRequest(SOCKET clientSocket,const PacketHeader& header){
-    char * PathName;
     char * buf;
     int len = header.packet_size - sizeof(header);
     int recive = recv(clientSocket, buf, len, 0);
@@ -13,7 +12,7 @@ void File::HandleRequest(SOCKET clientSocket,const PacketHeader& header){
         return;
     }
 
-    SendFile(PathName, clientSocket, header);
+    SendFile(buf, clientSocket, header);
 }
 
 void File::SendFile(const char *PathName, SOCKET clientSocket,const PacketHeader& header)
