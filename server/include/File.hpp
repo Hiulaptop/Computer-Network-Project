@@ -5,7 +5,7 @@
 #include "RequestHandler.hpp"
 #include "Response.hpp"
 
-class File : public FeatureHandler, public Response
+class File : public FeatureHandler
 {
 public:
     constexpr static int REQUEST_KEY = 0x02;

