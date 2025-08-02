@@ -1,6 +1,5 @@
 #include "File.hpp"
-
-
+#include "winsock2.h"
 void File::HandleRequest(SOCKET clientSocket,const PacketHeader& header){
     char * buf;
     int len = header.packet_size - sizeof(header);
@@ -48,5 +47,5 @@ void File::SendFile(const char *PathName, SOCKET clientSocket,const PacketHeader
     // if (sent == SOCKET_ERROR) {
     //     std::cerr << "Failed to send file to client." << std::endl;
     // }
-    // delete[] Buffer;
+    delete[] Buffer;
 }

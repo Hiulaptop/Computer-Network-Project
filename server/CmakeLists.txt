@@ -16,6 +16,11 @@ add_library(ServerFeature STATIC
     ${ServerFeatureSource}
 )
 
+#if(WIN32)
+    target_link_libraries(ServerFeature PRIVATE ws2_32)
+    target_link_libraries(ServerFeature PRIVATE wsock32)
+    target_link_libraries(ServerFeature PRIVATE Psapi)
+#endif()
 target_include_directories(ServerFeature PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
