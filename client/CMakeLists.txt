@@ -14,6 +14,11 @@ target_include_directories(ClientFeature PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+#if(WIN32)
+    target_link_libraries(ClientFeature PRIVATE ws2_32)
+    target_link_libraries(ClientFeature PRIVATE wsock32)
+#endif()
+
 add_executable(NetworkClient main.cpp)
 
 #if(WIN32)
