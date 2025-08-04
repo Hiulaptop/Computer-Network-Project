@@ -20,6 +20,11 @@ add_library(ServerFeature STATIC
     target_link_libraries(ServerFeature PRIVATE ws2_32)
     target_link_libraries(ServerFeature PRIVATE wsock32)
     target_link_libraries(ServerFeature PRIVATE Psapi)
+    target_link_libraries(ServerFeature PRIVATE Shlwapi)
+    target_link_libraries(ServerFeature PRIVATE Mf)
+    target_link_libraries(ServerFeature PRIVATE Mfplat)
+    target_link_libraries(ServerFeature PRIVATE Mfreadwrite)
+    target_link_libraries(ServerFeature PRIVATE Mfuuid)
 #endif()
 target_include_directories(ServerFeature PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include

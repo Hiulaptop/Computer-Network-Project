@@ -4,7 +4,7 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 
-constexpr int FEATURE_COUNT = 1;
+constexpr int FEATURE_COUNT = 4;
 
 struct PacketHeader {
     uint32_t packet_size;
@@ -23,7 +23,7 @@ public:
 class RequestHandler {
 public:
     RequestHandler();
-    DWORD WINAPI ProcessClient(LPVOID lpParam) const;
+    static DWORD WINAPI ProcessClient(LPVOID lpParam);
 private:
-    FeatureHandler* featureHandlers[FEATURE_COUNT] = {nullptr};
+    static FeatureHandler* featureHandlers[FEATURE_COUNT];
 };

