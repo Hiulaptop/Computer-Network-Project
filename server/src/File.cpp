@@ -1,7 +1,7 @@
 #include "File.hpp"
 #include "winsock2.h"
 void File::HandleRequest(SOCKET clientSocket,const PacketHeader& header){
-    char * buf;
+    char * buf = nullptr;
     int len = header.packet_size - sizeof(header);
     int recive = recv(clientSocket, buf, len, 0);
 

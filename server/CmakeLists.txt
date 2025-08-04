@@ -10,8 +10,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 add_compile_options(-Wall -Wextra)
 
-find_package(OpenCV REQUIRED PATHS "C:\\Users\\BBQPa\\Downloads\\opencv\\sources\\build\\install")
-
 file(GLOB_RECURSE ServerFeatureSource "src/*.cpp")
 
 add_library(ServerFeature STATIC
@@ -28,12 +26,8 @@ add_library(ServerFeature STATIC
     target_link_libraries(ServerFeature PRIVATE Mfreadwrite)
     target_link_libraries(ServerFeature PRIVATE Mfuuid)
 #endif()
-target_link_libraries(ServerFeature PUBLIC
-        ${OpenCV_LIBS}
-)
 target_include_directories(ServerFeature PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${OpenCV_INCLUDE_DIRS}
 )
 
 add_executable(NetworkServer main.cpp)
@@ -51,5 +45,4 @@ target_include_directories(NetworkServer PUBLIC
 
 target_link_libraries(NetworkServer PUBLIC
     ServerFeature
-    ${OpenCV_LIBS}
 )

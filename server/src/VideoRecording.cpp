@@ -1,258 +1,268 @@
 #include "VideoRecording.hpp"
 
-#include <iostream>
-#include <opencv2/opencv.hpp>
+#include "File.hpp"
+#include "Response.hpp"
 
-HRESULT Media::CreateCaptureDevice() {
+HRESULT Camera::CreateCaptureDevice(int deviceIndex) {
     HRESULT hr = S_OK;
-
-    hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-
     UINT32 count = 0;
-    IMFAttributes* attributes = nullptr;
-    IMFActivate** devices = nullptr;
-    if (FAILED(hr)) {
-        CLEAN_ATTRIBUTES()
+    IMFActivate **devices = nullptr;
+    IMFAttributes *attributes = nullptr;
+    EnterCriticalSection(&criticalSection);
+    if (SUCCEEDED(hr))
+        hr = MFStartup(MF_VERSION);
+    if (SUCCEEDED(hr))
+        hr = MFCreateAttributes(&attributes, 1);
+    if (SUCCEEDED(hr))
+        attributes->SetGUID(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE, MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID);
+    if (SUCCEEDED(hr)) {
+        hr = MFEnumDeviceSources(attributes, &devices, &count);
+        this->deviceCount = count;
     }
-
-    hr = MFCreateAttributes(&attributes, 1);
-
-    if (FAILED(hr)) {
-        CLEAN_ATTRIBUTES()
-    }
-
-    hr = attributes->SetGUID(
-        MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
-        MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID
-    );
-    if (FAILED(hr)) {
-        CLEAN_ATTRIBUTES()
-    }
-    hr = MFEnumDeviceSources(attributes, &devices, &count);
-    deviceCount = count;
-    if (FAILED(hr)) {
-        CLEAN_ATTRIBUTES()
-    }
-    if (count > 0) {
-        SetSourceReader(devices[deviceIndex]);
-        WCHAR *nameString = nullptr;
-        UINT32 cchName = 0;
-        hr = devices[deviceIndex]->GetAllocatedString(
-            MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
-            &nameString,
-            &cchName
-        );
-        if (SUCCEEDED(hr)) {
-            bytePerPixel = abs(stride)/width;
-            raw = new BYTE[width * height * bytePerPixel];
-            wcscpy(deviceName, nameString);
+    if (SUCCEEDED(hr) && count > 0) {
+        for (UINT32 i = 0; i < count; i++) {
+            if (i == deviceIndex) {
+                hr = GetSourceReader(devices[i]);
+                if (SUCCEEDED(hr)) {
+                    WCHAR *nameString = nullptr;
+                    UINT32 nameLength = 0;
+                    hr = devices[i]->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, &nameString, &nameLength);
+                    if (SUCCEEDED(hr)) {
+                        this->bytePerPixel = abs(stride)/width;
+                        wcscpy_s(deviceName, nameString);
+                    }
+                    CoTaskMemFree(nameString);
+                }
+            }
+            SafeRelease(&devices[i]);
         }
-        CoTaskMemFree(nameString);
+    } else {
+        std::cerr << "No video capture devices found." << std::endl;
     }
-    CLEAN_ATTRIBUTES()
+    LeaveCriticalSection(&criticalSection);
+    SafeRelease(&attributes);
+    SafeRelease(devices);
+    return hr;
 }
 
-HRESULT Media::SetSourceReader(IMFActivate *device) {
+HRESULT Camera::CreateMediaSink() {
+    HRESULT hr = S_OK;
+    IMFSinkWriter *writer = nullptr;
+    IMFMediaType  *pOutputType = nullptr;
+    IMFMediaType  *pInputType = nullptr;
+
+    hr = MFCreateSinkWriterFromURL(L"Recording.mp4", nullptr, nullptr, &writer);
+
+    if (SUCCEEDED(hr))
+        hr = MFCreateMediaType(&pOutputType);
+    if (SUCCEEDED(hr))
+        hr = pOutputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+    if (SUCCEEDED(hr))
+        hr = pOutputType->SetGUID(MF_MT_SUBTYPE, VIDEO_ENCODING_FORMAT);
+    if (SUCCEEDED(hr))
+        hr = pOutputType->SetUINT32(MF_MT_AVG_BITRATE, VIDEO_BITRATE);
+    if (SUCCEEDED(hr))
+        hr = pOutputType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
+    if (SUCCEEDED(hr))
+        hr = pOutputType->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE);
+    if (SUCCEEDED(hr))
+        hr = MFSetAttributeSize(pOutputType, MF_MT_FRAME_SIZE, width, height);
+    if (SUCCEEDED(hr))
+        hr = MFSetAttributeRatio(pOutputType, MF_MT_FRAME_RATE, FRAME_RATE, 1);
+    if (SUCCEEDED(hr))
+        hr = MFSetAttributeRatio(pOutputType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
+    if (SUCCEEDED(hr))
+        hr = writer->AddStream(pOutputType, &streamIndex);
+
+    if (SUCCEEDED(hr))
+        hr = MFCreateMediaType(&pInputType);
+    if (SUCCEEDED(hr))
+        hr = pInputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+    if (SUCCEEDED(hr))
+        hr = pInputType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12);
+    if (SUCCEEDED(hr))
+        hr = pInputType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
+    if (SUCCEEDED(hr))
+        hr = MFSetAttributeSize(pInputType, MF_MT_FRAME_SIZE, width, height);
+    if (SUCCEEDED(hr))
+        hr = MFSetAttributeRatio(pInputType, MF_MT_FRAME_RATE, FRAME_RATE, 1);
+    if (SUCCEEDED(hr))
+        hr = MFSetAttributeRatio(pInputType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
+    if (SUCCEEDED(hr))
+        hr = writer->SetInputMediaType(streamIndex, pInputType, nullptr);
+    if (SUCCEEDED(hr))
+        hr = writer->BeginWriting();
+    if (SUCCEEDED(hr)) {
+        sink = writer;
+        sink->AddRef();
+    }
+    SafeRelease(&pOutputType);
+    SafeRelease(&writer);
+
+    return hr;
+}
+
+HRESULT Camera::GetSourceReader(IMFActivate *device) {
     HRESULT hr = S_OK;
 
-    IMFMediaSource *source = nullptr;
-    IMFAttributes* attributes = nullptr;
-    IMFMediaType *mediaType = nullptr;
+    IMFMediaType *pType = nullptr;
+    IMFMediaSource *pSource = nullptr;
 
     EnterCriticalSection(&criticalSection);
-
-    hr = device->ActivateObject(__uuidof(IMFMediaSource), reinterpret_cast<void **>(&source));
-
+    hr = device->ActivateObject(__uuidof(IMFMediaSource), (void**)&pSource);
     if (SUCCEEDED(hr))
-        hr = device->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_AUDCAP_SYMBOLIC_LINK, &wSymbolicLink, &cchSymbolicLink);
-
+        hr = device->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK, &wSymbolicLink,
+                                        &cchSymbolicLink);
     if (SUCCEEDED(hr))
-        hr = MFCreateAttributes(&attributes, 2);
-
-    if (SUCCEEDED(hr))
-        hr = attributes->SetUINT32(MF_READWRITE_DISABLE_CONVERTERS, TRUE);
-
-    if (SUCCEEDED(hr))
-        hr = attributes->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK, this);
-
-    if (SUCCEEDED(hr))
-        hr = MFCreateSourceReaderFromMediaSource(source, attributes, &reader);
-
+        hr = MFCreateSourceReaderFromMediaSource(pSource, nullptr, &reader);
     if (SUCCEEDED(hr)) {
         for (DWORD i = 0;; i++) {
-            hr = reader->GetNativeMediaType(static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM), i, &mediaType);
-            if (FAILED(hr)) {break;}
-            GetDefaultStride(mediaType, &stride);
-            hr = IsMediaTypeSupported(mediaType);
-            if (FAILED(hr)) {break;}
-            MFGetAttributeSize(mediaType, MF_MT_FRAME_RATE, &width, &height);
-            SafeRelease(&mediaType);
-            if (hr == S_OK)
-                break;
+            hr = reader->GetNativeMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM, i, &pType);
+            if (FAILED(hr)) break;
+            GetDefaultStride(pType);
+            hr = IsMediaTypeSupported(pType);
+            if (FAILED(hr)) break;
+            MFGetAttributeSize(pType, MF_MT_FRAME_SIZE, (UINT32 *) &width, (UINT32 *) &height);
+            SafeRelease(&pType);
+            if (hr == S_OK) break;
         }
     }
-    if (SUCCEEDED(hr))
-        hr = reader->ReadSample(static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM), 0 ,nullptr, nullptr, nullptr, nullptr);
+    if (SUCCEEDED(hr)) {
+        IMFSample *pSample = nullptr;
+        DWORD streamIndex = 0;
+        DWORD flags = 0;
+        hr = reader->ReadSample( MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &streamIndex, &flags, &timestamp, &pSample);
+    }
     if (FAILED(hr)) {
-        if (source) {
-            source->Shutdown();
-        }
-        Close();
+        if (pSource)
+            pSource->Shutdown();
+        SafeRelease(&reader);
+        CoTaskMemFree(wSymbolicLink);
+        wSymbolicLink = nullptr;
+        cchSymbolicLink = 0;
     }
-    if (source){source->Release(); source = nullptr;}
-    if (attributes) {attributes->Release(); attributes = nullptr;}
-    if (mediaType) {mediaType->Release(); mediaType = nullptr;}
+    SafeRelease(&pSource);
     LeaveCriticalSection(&criticalSection);
     return hr;
 }
 
-HRESULT Media::IsMediaTypeSupported(IMFMediaType *pType) {
+HRESULT Camera::IsMediaTypeSupported(IMFMediaType *mediaType) {
     HRESULT hr = S_OK;
-    GUID subtype = {0};
-    hr = pType->GetGUID(MF_MT_SUBTYPE, &subtype);
-    videoFormat = subtype;
+
+    GUID subtype = GUID_NULL;
+    hr = mediaType->GetGUID(MF_MT_SUBTYPE, &subtype);
     if (FAILED(hr)) return hr;
-    if (subtype == MFVideoFormat_RGB24) {
+    this->videoFormat = mediaType;
+    if (subtype == MFVideoFormat_RGB32 || subtype == MFVideoFormat_RGB24 || subtype == MFVideoFormat_YUY2 || subtype == MFVideoFormat_NV12)
         return S_OK;
-    }
     return S_FALSE;
 }
 
-HRESULT Media::GetDefaultStride(IMFMediaType *pType, LONG *pStride) {
+HRESULT Camera::GetDefaultStride(IMFMediaType *mediaType) {
     LONG tStride = 0;
-
-    HRESULT hr = pType->GetUINT32(MF_MT_DEFAULT_STRIDE, reinterpret_cast<UINT32 *>(&tStride));
-    UINT32 width = 0, height = 0;
+    HRESULT hr = S_OK;
+    hr = mediaType->GetUINT32(MF_MT_DEFAULT_STRIDE, (UINT32*)&tStride);
     if (FAILED(hr)) {
-        GUID subtype = {0};
-        hr = pType->GetGUID(MF_MT_SUBTYPE, &subtype);
-        if (SUCCEEDED(hr)) hr = MFGetAttributeSize(pType, MF_MT_FRAME_SIZE, &width, &height);
-        if (SUCCEEDED(hr)) hr = MFGetStrideForBitmapInfoHeader(subtype.Data1, width, &tStride);
-        if (SUCCEEDED(hr)) (void)pType->SetUINT32(MF_MT_DEFAULT_STRIDE, tStride);
+        GUID subtype = GUID_NULL;
+        UINT32 twidth = 0, theight = 0;
+        hr = mediaType->GetGUID(MF_MT_SUBTYPE, &subtype);
+        if (SUCCEEDED(hr))
+            hr = MFGetAttributeSize(mediaType, MF_MT_FRAME_SIZE, &twidth, &theight);
+        if (SUCCEEDED(hr))
+            hr = MFGetStrideForBitmapInfoHeader(subtype.Data1, twidth, &tStride);
+        if (SUCCEEDED(hr))
+            hr = mediaType->SetUINT32(MF_MT_DEFAULT_STRIDE, tStride);
     }
-    if (SUCCEEDED(hr))
+    if (SUCCEEDED(hr)) {
         stride = tStride;
+    }
     return hr;
 }
 
-HRESULT Media::Close() {
-    EnterCriticalSection(&criticalSection);
-    SafeRelease(&reader);
-
-    CoTaskMemFree(wSymbolicLink);
-    wSymbolicLink = nullptr;
-    cchSymbolicLink = 0;
-    LeaveCriticalSection(&criticalSection);
-    return S_OK;
-}
-
-Media::Media(int index): stride(0), bytePerPixel(0), videoFormat(), deviceName{}, deviceCount(0) {
-    InitializeCriticalSection(&criticalSection);
-    refCount = 1;
-    wSymbolicLink = nullptr;
-    cchSymbolicLink = 0;
-    width = 0;
-    height = 0;
-    reader = nullptr;
-    raw = nullptr;
-    deviceIndex = index;
-}
-
-Media::~Media() {
-    if (wSymbolicLink) {
-        delete wSymbolicLink;
-        wSymbolicLink = nullptr;
-    }
-    EnterCriticalSection(&criticalSection);
-
-    SafeRelease(&reader);
-
-    if (raw) {
-        delete raw;
-        raw = nullptr;
-    }
-
-    CoTaskMemFree(wSymbolicLink);
-    wSymbolicLink = nullptr;
-    cchSymbolicLink = 0;
-
-    LeaveCriticalSection(&criticalSection);
-    DeleteCriticalSection(&criticalSection);
-}
-
-HRESULT Media::QueryInterface(const IID &riid, void **ppv) {
-    static const QITAB qit[] = {QITABENT(Media, IMFSourceReaderCallback),{ nullptr },};
-    return QISearch(this, qit, riid, ppv);
-}
-
-ULONG Media::Release() {
-    ULONG count = InterlockedDecrement(&refCount);
-    if (count == 0) {
-        delete this;
-    }
-    return count;
-}
-
-STDMETHODIMP Media::OnReadSample(HRESULT status, DWORD streamIndex, DWORD streamFlags, LONGLONG timeStamp,
-    IMFSample *sample) {
-    HRESULT hr = S_OK;
-    IMFMediaBuffer *buffer = nullptr;
-
-    EnterCriticalSection(&criticalSection);
-    if (FAILED(status)) hr = status;
+HRESULT Camera::WriteFrame(IMFSample *sample) {
+    HRESULT hr = sample->SetSampleTime(timestamp);
+    if (SUCCEEDED(hr))
+        hr = sample->SetSampleDuration(FRAME_DURATION);
     if (SUCCEEDED(hr)) {
+        hr = sink->WriteSample(streamIndex, sample);
+        frameCount++;
+    }
+    return hr;
+}
+
+Camera::Camera() {
+    InitializeCriticalSection(&criticalSection);
+}
+
+void Camera::Capture(int second) {
+    HRESULT hr = CreateCaptureDevice(0);
+    DWORD streamFlags = 0, actualStreamIndex = 0;
+    IMFSample *sample = nullptr;
+    LONGLONG firstTimestamp = 0;
+    bool isFirstFrame = true;
+
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create capture device: " << std::hex << hr << std::endl;
+        return;
+    }
+    std::wcout << "Using device: " << deviceName << std::endl;
+    std::cout << "Height: " << height << ", Width: " << width << ", Stride: " << stride << std::endl;
+    hr = CreateMediaSink();
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create media sink: " << std::hex << hr << std::endl;
+        return;
+    }
+    do {
+        hr = reader->ReadSample((DWORD) MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &actualStreamIndex, &streamFlags, &timestamp, &sample);
+        if (FAILED(hr)) {
+            std::cerr << "Failed to read sample: " << std::hex << hr << std::endl;
+            break;
+        }
+        if (streamFlags & MF_SOURCE_READERF_ENDOFSTREAM) {
+            std::cout << "Stream ended." << std::endl;
+            break;
+        }
         if (sample) {
-            hr = sample->GetBufferByIndex(0, &buffer);
-            if (SUCCEEDED(hr)) {
-                BYTE *data = nullptr;
-                buffer->Lock(&data, nullptr, nullptr);
-                // Save data here
-                CopyMemory(raw, data, width * height * bytePerPixel);
-                buffer->Unlock();
+            if (isFirstFrame) {
+                firstTimestamp = timestamp;
+                isFirstFrame = false;
+            }
+            timestamp -= firstTimestamp;
+            hr = WriteFrame(sample);
+            SafeRelease(&sample);
+            if (FAILED(hr)) {
+                std::cerr << "Failed to write sample: " << std::hex << hr << std::endl;
+                break;
             }
         }
-    }
-    if (SUCCEEDED(hr)) reader->ReadSample(
-        static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM),
-        0, nullptr, nullptr, nullptr, nullptr
-    );
-    if (FAILED(hr)) {
-        std::cout << "Failed to read sample: " << std::hex << hr << std::endl;
-    }
-    SafeRelease(&buffer);
-    LeaveCriticalSection(&criticalSection);
-    return hr;
-}
+    }while (timestamp < 10000000 * second);
 
-STDMETHODIMP Media::OnEvent(DWORD streamIndex, IMFMediaEvent *event) {
-    return S_OK;
-}
-
-STDMETHODIMP Media::OnFlush(DWORD streamIndex) {
-    return S_OK;
+    sink->Finalize();
+    SafeRelease(&reader);
+    SafeRelease(&sink);
+    CoTaskMemFree(wSymbolicLink);
+    wSymbolicLink = nullptr;
+    cchSymbolicLink = 0;
+    DeleteCriticalSection(&criticalSection);
+    std::cout << "Recording finished. Total frames: " << frameCount << std::endl;
 }
 
 void VideoRecording::HandleRequest(SOCKET client_socket, const PacketHeader &header) {
 }
 
-Media *VideoRecording::media = nullptr;
 std::atomic_bool VideoRecording::isRecording = false;
+Camera *VideoRecording::camera = nullptr;
 
-void VideoRecording::StartRecording() {
-    media = new Media(1);
-    HRESULT hr = media->CreateCaptureDevice();
-    if (FAILED(hr)) {
-        std::cerr << "Failed to create capture device: " << std::hex << hr << std::endl;
-        delete media;
-        media = nullptr;
-        return;
-    }
+void VideoRecording::StartRecording(SOCKET client_socket,const PacketHeader &header, int seconds) {
     isRecording = true;
+    camera = new Camera();
+    camera->Capture(seconds);
+    isRecording = false;
+    delete camera;
+    camera = nullptr;
+    std::cout << "Video recording completed." << std::endl;
+    Response response(header.request_id, 0x00);
+    response.setMessage("Video recording completed.");
+    response.sendResponse(client_socket);
+    File::SendFile(VIDEO_FILENAME.c_str(), client_socket, header);
 }
-
-void VideoRecording::StopRecording() {
-}
-
-void VideoRecording::SendVideoFile(SOCKET client_socket, const PacketHeader &header) {
-}
-
