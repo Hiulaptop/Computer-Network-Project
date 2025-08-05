@@ -4,12 +4,17 @@
 #include <string>
 #include <winsock2.h>
 
-class Response {
-protected:
+struct ResponseHeader {
+    uint32_t packageSize;
     uint16_t responseID;
     uint16_t statusCode;
-    uint32_t messageLength;
+};
+
+class Response {
+protected:
+    ResponseHeader header;
     char *message;
+    int messageLength = 0;
 
 public:
     ~Response() {
@@ -17,25 +22,24 @@ public:
         message = nullptr;
     }
 
-    Response(const uint16_t responseID, const uint16_t statusCode): responseID(responseID), statusCode(statusCode),
-                                                                    messageLength(0),
+    Response(const uint16_t responseID, const uint16_t statusCode): header(0,responseID,statusCode),
                                                                     message(nullptr) {
     }
 
     void setStatusCode(const uint16_t code) {
-        statusCode = code;
+        header.statusCode = code;
     }
 
     uint16_t getStatusCode() const {
-        return statusCode;
+        return header.statusCode;
     }
 
     void setResponseID(const uint16_t id) {
-        responseID = id;
+        header.responseID = id;
     }
 
     uint16_t getResponseID() const {
-        return responseID;
+        return header.responseID;
     }
 
     void setMessage(const std::string &msg) {
@@ -52,17 +56,12 @@ public:
         return messageLength;
     }
 
-    void sendResponse(const SOCKET clientSocket) const {
+    void sendResponse(const SOCKET clientSocket) {
         if (clientSocket == INVALID_SOCKET || message == nullptr) {
             return;
         }
-        const uint32_t totalSize = sizeof(responseID) + sizeof(statusCode) + sizeof(messageLength) + messageLength;
-        const auto buffer = new char[totalSize];
-        std::memcpy(buffer, &responseID, sizeof(responseID));
-        std::memcpy(buffer + sizeof(responseID), &statusCode, sizeof(statusCode));
-        std::memcpy(buffer + sizeof(responseID) + sizeof(statusCode), &messageLength, sizeof(messageLength));
-        std::memcpy(buffer + sizeof(responseID) + sizeof(statusCode) + sizeof(messageLength), message, messageLength);
-        send(clientSocket, buffer, totalSize, 0);
-        delete[] buffer;
+        header.packageSize = sizeof(header) + messageLength;
+        send(clientSocket, (char*)&header, sizeof(header), 0);
+        send(clientSocket, message, messageLength, 0);
     }
 };
