@@ -8,6 +8,11 @@ struct PacketHeader {
     uint8_t  request_type;
     uint8_t  request_key;
 };
+struct ResponseHeader {
+    uint32_t packageSize;
+    uint16_t responseID;
+    uint16_t statusCode;
+};
 
 void send_connect_request(const SOCKET clientSocket) {
     PacketHeader header{};
@@ -20,6 +25,13 @@ void send_connect_request(const SOCKET clientSocket) {
     send(clientSocket, reinterpret_cast<const char *>(&packetSize), sizeof(packetSize), 0);
     send(clientSocket, reinterpret_cast<const char *>(&header), sizeof(header), 0);
     send(clientSocket, request, sizeof(request) - 1, 0);
+    ResponseHeader responseHeader{};
+    recv(clientSocket, reinterpret_cast<char *>(&responseHeader), sizeof(responseHeader), 0);
+    char *buf = new char[responseHeader.packageSize - sizeof(responseHeader) + 1];
+    recv(clientSocket, buf, responseHeader.packageSize - sizeof(responseHeader), 0);
+    buf[responseHeader.packageSize - sizeof(responseHeader)] = '\0';
+    std::cout << "Received response: " << buf << std::endl;
+    delete[] buf;
 }
 
 int main(int argc, char *argv[]) {
