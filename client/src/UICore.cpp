@@ -1,11 +1,13 @@
 #include "UICore.hpp"
 
+#include <iostream>
 #include <stdexcept>
 
 #include "Constants.hpp"
+#include "StartScreen.hpp"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
-#include "TestScreen.hpp"
+#include "MenuScreen.hpp"
 
 
 static void glfw_error_callback(int error, const char *description) {
@@ -49,7 +51,11 @@ void Core::Init() {
     ImGui_ImplGlfw_InitForOpenGL(this->m_Window, true);
     ImGui_ImplOpenGL3_Init(Constants::GLSL_VERSION.c_str());
 
-    PushScreen<DemoScreen>(*this);
+    // PushScreen<DemoScreen>(*this);
+
+    //Push Screen Here
+    PushScreen<MenuScreen>(*this);
+    PushScreen<StartScreen>(*this);
 }
 
 void Core::Start() {
@@ -90,11 +96,20 @@ void Core::Shutdown() {
 }
 
 void Core::TryPopScreen() {
+    // std::cout << "In TryPopScreen() ..." << std::endl;
     if (this->m_ShouldPop && this->m_ScreenStack.size() > 1) {
+        std::cout << "POP..." << std::endl;
         this->m_ShouldPop = false;
         this->m_ScreenStack.back()->OnExit();
         this->m_ScreenStack.pop_back();
+        return;
     }
+    if (this->m_ShouldPop && this->m_ScreenStack.size() == 1) {
+        std::cout << "Shutdown..." << std::endl;
+        this->Shutdown();
+        return;
+    }
+    // std::cout << "Do Nothing..." << std::endl;
 }
 
 ImGuiIO &Core::GetIO() const {
