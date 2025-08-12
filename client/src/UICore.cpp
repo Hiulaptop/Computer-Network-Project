@@ -104,12 +104,15 @@ void Core::TryPopScreen() {
         this->m_ScreenStack.pop_back();
         return;
     }
-    if (this->m_ShouldPop && this->m_ScreenStack.size() == 1) {
-        std::cout << "Shutdown..." << std::endl;
-        this->Shutdown();
-        return;
+    if (this->m_ShouldPop) {
+        this->m_ShouldPop = false;
+        this->m_ScreenStack.back()->OnExit();
+        this->m_ScreenStack.pop_back();
+        if (this->m_ShouldChangeState) {
+            this->m_ShouldChangeState = false;
+            PushScreen(std::move(this->m_ChangedScreen));
+        }
     }
-    // std::cout << "Do Nothing..." << std::endl;
 }
 
 ImGuiIO &Core::GetIO() const {
