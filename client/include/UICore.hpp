@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <vector>
+#include <cstdint>
 
 #include "imgui.h"
 #include "GLFW/glfw3.h"

@@ -4,7 +4,7 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 
-constexpr int FEATURE_COUNT = 4;
+constexpr int FEATURE_COUNT = 5;
 
 struct PacketHeader {
     uint32_t packet_size;
