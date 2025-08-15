@@ -35,39 +35,22 @@ std::vector<ProcessInfo> Process::ListProcess(){
         do{
             ProcessInfo Process;
             Process.PID = pe.th32ProcessID;
-            memcpy(Process.Name,pe.szExeFile,sizeof(pe.szExeFile));
+            memcpy(Process.Name, pe.szExeFile, sizeof(pe.szExeFile));
             Process.ParentPID = pe.th32ParentProcessID;
-            Process.ThreadCount = pe.cntThreads;
             Process.MemoryUsage = 0;
-            Process.FullPath = ConvertTCHARToWString("Unknow");
             Process.CPUTimeUser = 0;
-            Process.CPUTimeKernel = 0;
-            Process.PriorityClass = 0;
-            Process.SessionID = 0;
-
             HANDLE HProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, Process.PID);
             if(HProcess){
-                TCHAR Path[MAX_PATH];
-                if(GetModuleFileNameEx(HProcess,nullptr,Path,MAX_PATH))
-                    Process.FullPath = ConvertTCHARToWString(Path);
-
                 FILETIME createTime, exitTime, kernelTime, userTime;
                 if (GetProcessTimes(HProcess, &createTime, &exitTime, &kernelTime, &userTime)) {
-                    Process.CPUTimeKernel = FileTimeToULL(kernelTime);
+
                     Process.CPUTimeUser = FileTimeToULL(userTime);
                 }
-
                 PROCESS_MEMORY_COUNTERS pmc;
                 if(GetProcessMemoryInfo(HProcess,&pmc,sizeof(pmc)))
                     Process.MemoryUsage = pmc.WorkingSetSize;
-
-                Process.PriorityClass = GetPriorityClass(HProcess);
-
-                ProcessIdToSessionId(Process.PID, &Process.SessionID);
-
                 CloseHandle(HProcess);
             }
-
             ProcessList.push_back(Process);
 
         }while(Process32Next(hSnapShot,&pe));
@@ -83,21 +66,44 @@ bool Process::TerminateProcessByID(const int& PID){
     return true;
 }
 
-void Process::PrintProcessList(const std::vector<ProcessInfo>& ProcessList) {
-    std::wofstream outFile(L"processes.txt");
+std::wstring ProcessListToString(std::vector<ProcessInfo>& ProcessList)
+{
+    std::wstringstream ProcessInfo;
     for (const auto& Process : ProcessList) {
-        outFile << L"=============================\n";
-        outFile << L"Name       : " << Process.Name << L"\n";
-        outFile << L"PID        : " << Process.PID << L"\n";
-        outFile << L"Parent PID : " << Process.ParentPID<< L"\n";
-        outFile << L"Threads    : " << Process.ThreadCount << L"\n";
-        outFile << L"Full Path  : " << Process.FullPath << L"\n";
-        outFile << L"RAM Usage  : " << Process.MemoryUsage / 1024 << L" KB\n";
-        outFile << L"CPU User   : " << Process.CPUTimeUser / 10000 << L" ms\n";
-        outFile << L"CPU Kernel : " << Process.CPUTimeKernel / 10000 << L" ms\n";
-        outFile << L"Priority   : " << Process.PriorityClass << L"\n";
-        outFile << L"Session ID : " << Process.SessionID << L"\n";
+        ProcessInfo << L"=============================\n";
+        ProcessInfo << L"Name       : " << Process.Name << L"\n";
+        ProcessInfo << L"PID        : " << Process.PID << L"\n";
+        ProcessInfo << L"Parent PID : " << Process.ParentPID<< L"\n";
+        ProcessInfo << L"RAM Usage  : " << Process.MemoryUsage / 1024 << L" KB\n";
+        ProcessInfo << L"CPU User   : " << Process.CPUTimeUser / 10000 << L" ms\n";
     }
+    std::wcout << ProcessInfo.str();
+}
+
+std::string Process::ProcessListToMessage(std::vector<ProcessInfo>& ProcessList)
+{
+    std::string buffer;
+
+
+    uint32_t count = static_cast<uint32_t>(ProcessList.size());
+    buffer.append(reinterpret_cast<char*>(&count), sizeof(count));
+
+
+    for (auto& p : ProcessList)
+    {
+        buffer.append(reinterpret_cast<char*>(&p.PID), sizeof(p.PID));
+
+        buffer.append(p.Name, 260);
+
+        buffer.append(reinterpret_cast<char*>(&p.ParentPID), sizeof(p.ParentPID));
+
+        buffer.append(reinterpret_cast<char*>(&p.MemoryUsage), sizeof(p.MemoryUsage));
+
+
+        buffer.append(reinterpret_cast<char*>(&p.CPUTimeUser), sizeof(p.CPUTimeUser));
+    }
+
+    return buffer;
 }
 
 void Process::HandleRequest(SOCKET client_socket, const PacketHeader &header) {
@@ -107,9 +113,10 @@ void Process::HandleRequest(SOCKET client_socket, const PacketHeader &header) {
     }
     if (header.request_type == 0x01) {
         auto ProcessList = ListProcess();
-        PrintProcessList(ProcessList);
-        std::string response = "Process list saved to processes.txt";
-        send(client_socket, response.c_str(), response.size(), 0);
+        std::string response = ProcessListToMessage(ProcessList);
+        Response res(header.request_id + 1, 200);
+        res.setMessage(response);
+        res.sendResponse(client_socket);
     } else if (header.request_type == 0x02) {
         int PID;
         recv(client_socket, reinterpret_cast<char*>(&PID), sizeof(PID), 0);
