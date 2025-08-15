@@ -16,7 +16,6 @@ int main(int argc, char *argv[])
     int wsaerr = WSAStartup(wVersionRequested, &wsaData);
     if (wsaerr != 0)
     {
-
         std::cerr << "Failed to initialize Winsock: " << wsaerr << '\n';
         return 1;
     }

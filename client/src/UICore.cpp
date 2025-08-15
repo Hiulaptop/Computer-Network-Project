@@ -52,7 +52,6 @@ void Core::Init() {
     ImGui_ImplOpenGL3_Init(Constants::GLSL_VERSION.c_str());
 
     // PushScreen<DemoScreen>(*this);
-
     //Push Screen Here
     PushScreen<MenuScreen>(*this);
     PushScreen<StartScreen>(*this);
@@ -97,14 +96,7 @@ void Core::Shutdown() {
 
 void Core::TryPopScreen() {
     // std::cout << "In TryPopScreen() ..." << std::endl;
-    if (this->m_ShouldPop && this->m_ScreenStack.size() > 1) {
-        std::cout << "POP..." << std::endl;
-        this->m_ShouldPop = false;
-        this->m_ScreenStack.back()->OnExit();
-        this->m_ScreenStack.pop_back();
-        return;
-    }
-    if (this->m_ShouldPop) {
+    if (this->m_ShouldPop && !this->m_ScreenStack.empty()) {
         this->m_ShouldPop = false;
         this->m_ScreenStack.back()->OnExit();
         this->m_ScreenStack.pop_back();

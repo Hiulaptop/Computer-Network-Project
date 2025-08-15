@@ -56,10 +56,10 @@ target_include_directories(ClientFeature PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-#if(WIN32)
-#    target_link_libraries(ClientFeature PRIVATE ws2_32)
-#    target_link_libraries(ClientFeature PRIVATE wsock32)
-#endif()
+if(WIN32)
+    target_link_libraries(ClientFeature PRIVATE ws2_32)
+    target_link_libraries(ClientFeature PRIVATE wsock32)
+endif()
 target_link_libraries(ClientFeature PUBLIC
         imgui
         glfw
@@ -68,10 +68,10 @@ target_link_libraries(ClientFeature PUBLIC
 
 add_executable(NetworkClient main.cpp)
 
-#if(WIN32)
-#target_link_libraries(NetworkClient PRIVATE ws2_32)
-#target_link_libraries(NetworkClient PRIVATE wsock32)
-#endif()
+if(WIN32)
+target_link_libraries(NetworkClient PRIVATE ws2_32)
+target_link_libraries(NetworkClient PRIVATE wsock32)
+endif()
 
 target_include_directories(NetworkClient PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include

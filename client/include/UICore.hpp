@@ -63,4 +63,8 @@ public:
     }
 
     void PopScreen();
+
+    float GetScaleFactor() const {
+        return m_ScaleFactor;
+    }
 };
