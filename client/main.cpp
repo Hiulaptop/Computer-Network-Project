@@ -1,22 +1,90 @@
+// #include <iostream>
+// #include <winsock2.h>
+// #include <ws2tcpip.h>
+//
+// #include "UICore.hpp"
+//
+// int main() {
+//     Core core;
+//     core.Init();
+//     core.Start();
+//     core.Shutdown();
+//
+//     return 0;
+// }
+
 #include <iostream>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <cstdint>
 
-#include "UICore.hpp"
+struct PacketHeader {
+    uint32_t packet_size;
+    uint16_t request_id;
+    uint8_t  request_type;
+    uint8_t  request_key;
+};
+struct ResponseHeader {
+    uint32_t packageSize;
+    uint16_t responseID;
+    uint16_t statusCode;
+};
 
-int main() {
-    WORD wVersionRequested = MAKEWORD(2, 2);
+void send_connect_request(const SOCKET clientSocket) {
+    PacketHeader header{};
+    header.request_id = 1;
+    header.request_type = 1;
+    header.request_key = 0;
+
+    char request[] = "C:\\Users\\Phat Truong\\Downloads";
+    header.packet_size = (sizeof(PacketHeader) + sizeof(request) - 1);
+    send(clientSocket, reinterpret_cast<const char *>(&header), sizeof(header), 0);
+    send(clientSocket, request, sizeof(request) - 1, 0);
+    ResponseHeader responseHeader{};
+    recv(clientSocket, reinterpret_cast<char *>(&responseHeader), sizeof(responseHeader), 0);
+    int len = responseHeader.packageSize - sizeof(responseHeader) + 1;
+    if (len > 0)
+    {
+        char *buf = new char[len];
+        recv(clientSocket, buf, len - 1, 0);
+        buf[len - 1] = '\0';
+        std::cout << "Received response: " << buf << std::endl;
+        delete[] buf;
+    }
+}
+
+int main(int argc, char *argv[]) {
     WSADATA wsaData;
-    int wsaerr = WSAStartup(wVersionRequested, &wsaData);
-    if (wsaerr != 0) {
-        std::cerr << "Failed to initialize Winsock: " << wsaerr << '\n';
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        std::cerr << "Failed to initialize Winsock!" << std::endl;
         return 1;
     }
-    std::cout << "Winsock initialized successfully" << '\n';
-    Core core;
-    core.Init();
-    core.Start();
-    core.Shutdown();
+
+    SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientSocket == INVALID_SOCKET) {
+        std::cerr << "Cannot create socket!" << std::endl;
+        WSACleanup();
+        return 1;
+    }
+
+    sockaddr_in serverAddr{};
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(8080);
+    serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1"); // Server address
+
+    if (connect(clientSocket, reinterpret_cast<sockaddr *>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
+        std::cerr << "Failed to connect to server!" << std::endl;
+        closesocket(clientSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    std::cout << "Connected to server successfully!" << std::endl;
+
+    // Send connect request to server
+    send_connect_request(clientSocket);
+
+    closesocket(clientSocket);
     WSACleanup();
     return 0;
 }
