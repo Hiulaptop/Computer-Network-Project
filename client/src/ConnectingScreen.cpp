@@ -6,8 +6,12 @@
 #include "MainMenu.hpp"
 #include "UICore.hpp"
 
+char* ConnectingScreen::m_IP = nullptr;
+std::atomic_bool ConnectingScreen::m_isConnected(false);
+std::atomic_bool ConnectingScreen::m_isError(false);
+
 void ConnectingScreen::Render(float DT) {
-    if (m_totalTime > 5.f) {
+    if (m_totalTime > 5.f || m_isError.load()) {
         m_Core.PopScreen();
         ImGui::OpenPopup("Connection Error");
         std::cerr << "Connection timed out after 5 seconds." << std::endl;
@@ -35,72 +39,72 @@ void ConnectingScreen::Render(float DT) {
     if (ImGui::Button("Cancel")) {
         m_Core.PopScreen();
     }
-    fd_set writeFds, exceptFds;
-    FD_ZERO(&writeFds);
-    FD_ZERO(&exceptFds);
-    FD_SET(m_Socket, &writeFds);
-    FD_SET(m_Socket, &exceptFds);
-
-    timeval timeout{};
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 0;
-
-    int result = select(0, nullptr, &writeFds, &exceptFds, &timeout);
-    if (result < 0) {
-        m_Core.PopScreen();
-        ImGui::OpenPopup("Connection Error");
-        std::cerr << "Select failed: " << WSAGetLastError() << std::endl;
-        return;
-    }
-    if (result > 0) {
-        if (FD_ISSET(m_Socket, &exceptFds)) {
-            int errorCode = WSAGetLastError();
-            m_Core.PopScreen();
-            ImGui::OpenPopup("Connection Error");
-            std::cerr << "Socket error: " << errorCode << std::endl;
-            closesocket(m_Socket);
-            return;
-        }
-        if (FD_ISSET(m_Socket, &writeFds)) {
-
-            m_Core.ChangeScreen<MainMenu>(m_Core, m_Socket);
-        }
+    if (m_isConnected.load()) {
+        m_Core.ChangeScreen<MainMenu>(m_Core, m_IP);
     }
 }
 
 void ConnectingScreen::Init() {
-    m_Socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (m_Socket == INVALID_SOCKET) {
-        m_Core.PopScreen();
-        ImGui::OpenPopup("Connection Error");
-        std::cerr << "Failed to create socket: " << WSAGetLastError() << std::endl;
-        return;
-    }
-    u_long mode = 1;
-    int result = ioctlsocket(m_Socket, FIONBIO, &mode);
-    if (result != NO_ERROR) {
-        m_Core.PopScreen();
-        ImGui::OpenPopup("Connection Error");
-        closesocket(m_Socket);
-        std::cerr << "Failed to set socket to non-blocking mode: " << WSAGetLastError() << std::endl;
-        return;
-    }
-    sockaddr_in serverAddr{};
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(8080);
-    inet_pton(AF_INET, m_IP, &serverAddr.sin_addr);
-
-    result = connect(m_Socket, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr));
-    if (result == SOCKET_ERROR && (WSAGetLastError() != WSAEWOULDBLOCK)) {
-        m_Core.PopScreen();
-        ImGui::OpenPopup("Connection Error");
-        closesocket(m_Socket);
-        std::cerr << "Failed to connect to server: " << WSAGetLastError() << std::endl;
-        return;
-    }
+    CreateThread(
+        nullptr,
+        0,
+        Connecting,
+        nullptr,
+        0,
+        nullptr
+    );
+    m_totalTime = 0;
+    m_isError = false;
+    m_isConnected = false;
 }
 
 void ConnectingScreen::OnExit() {
     delete[] m_IP;
     m_IP = nullptr;
+}
+
+DWORD ConnectingScreen::Connecting(LPVOID lpParam) {
+    SOCKET m_connectedSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (m_connectedSocket == INVALID_SOCKET) {
+        std::cerr << "Failed to create socket: " << WSAGetLastError() << std::endl;
+        m_isError.store(true);
+        return 1;
+    }
+    sockaddr_in serverAddr{};
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(8080); // Replace with your server port
+    inet_pton(AF_INET, m_IP, &serverAddr.sin_addr);
+    if (connect(m_connectedSocket, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
+        std::cerr << "Failed to connect to server: " << WSAGetLastError() << std::endl;
+        closesocket(m_connectedSocket);
+        m_connectedSocket = INVALID_SOCKET;
+        m_isError.store(true);
+        return 1;
+    }
+    PacketHeader header{};
+    header.request_key = 5;
+    header.request_id = 0;
+    header.packet_size = sizeof(PacketHeader);
+    header.request_type = 0;
+    send(m_connectedSocket, reinterpret_cast<const char*>(&header), sizeof(header), 0);
+    int bytesReceived = 0;
+    ResponseHeader responseHeader{};
+    bytesReceived = recv(m_connectedSocket, reinterpret_cast<char*>(&responseHeader), sizeof(responseHeader), 0);
+    if (bytesReceived <= 0) {
+        std::cerr << "Failed to receive response header: " << WSAGetLastError() << std::endl;
+        closesocket(m_connectedSocket);
+        m_connectedSocket = INVALID_SOCKET;
+        m_isError.store(true);
+        return 1;
+    }
+    if (responseHeader.statusCode != 0x01) {
+        std::cerr << "Failed to connect to server, status code: " << responseHeader.statusCode << std::endl;
+        closesocket(m_connectedSocket);
+        m_connectedSocket = INVALID_SOCKET;
+        m_isError.store(true);
+        return 1;
+    }
+    std::cout << "Successfully connected to server." << std::endl;
+    m_isConnected.store(true);
+    return 0;
 }

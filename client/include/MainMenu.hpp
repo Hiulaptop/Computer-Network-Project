@@ -5,7 +5,6 @@
 
 class MainMenu : public Screen {
 private:
-    SOCKET m_Socket;
     char* m_IP = nullptr;
     ProcessSubMenu processSubMenu;
     FileSubMenu fileSubMenu;
@@ -13,9 +12,7 @@ private:
     WinUtilsSubMenu winUtilsSubMenu;
     WebcamSubMenu webcamSubMenu;
 public:
-    MainMenu(Core& core, SOCKET socket);
-
-    MainMenu(Core &core, const char *ip);
+    MainMenu(Core& core, char* IP);
 
     void Render(float DT) override;
 

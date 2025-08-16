@@ -11,7 +11,7 @@
 //     // CLSIDFromString(L"{557CF406-1A04-11D3-9A73-0000F81EF32E}", &pngClsid); // PNG
 //
 //     Response res(header.request_id + 1, 200);
-//     res.setMessage(bitmap.);
+//     std::cerr << (bitmap.);
 //
 //     //bitmap.Save(filename, &pngClsid, NULL);
 //
@@ -92,7 +92,7 @@ void WindowCommand::ShutDown(SOCKET& client_socket,const PacketHeader& header)
 
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken)) {
         Response res(header.request_id, 0x02);
-        res.setMessage("Failed to open process token for shutdown.");
+        std::cerr << ("Failed to open process token for shutdown.");
         res.sendResponse(client_socket);
         return;
     }
@@ -103,11 +103,11 @@ void WindowCommand::ShutDown(SOCKET& client_socket,const PacketHeader& header)
     AdjustTokenPrivileges(hToken, FALSE, &tkp, 0, NULL, 0);
 
     Response res(header.request_id, 0x00);
-    res.setMessage("System shutdown initiated successfully.");
+    std::cerr << ("System shutdown initiated successfully.");
     BOOL result = ExitWindowsEx(EWX_SHUTDOWN | EWX_FORCE, SHTDN_REASON_MAJOR_OPERATINGSYSTEM);
     if (result == FALSE) {
         res.setStatusCode(0x01);
-        res.setMessage("Failed to shutdown the system.");
+        std::cerr << ("Failed to shutdown the system.");
         res.sendResponse(client_socket);
         CloseHandle(hToken);
         return;
@@ -124,7 +124,7 @@ void WindowCommand::Restart(SOCKET& client_socket,const PacketHeader& header)
 
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken)) {
         Response res(header.request_id, 0x02);
-        res.setMessage("Failed to open process token for restart.");
+        std::cerr << ("Failed to open process token for restart.");
         res.sendResponse(client_socket);
         return;
     }
@@ -134,11 +134,10 @@ void WindowCommand::Restart(SOCKET& client_socket,const PacketHeader& header)
     tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
     AdjustTokenPrivileges(hToken, FALSE, &tkp, 0, NULL, 0);
     Response res(header.request_id, 0x00);
-    res.setMessage("System restart initiated successfully.");
+    std::cerr << ("System restart initiated successfully.");
     BOOL result = ExitWindowsEx(EWX_REBOOT | EWX_FORCE, SHTDN_REASON_MAJOR_OPERATINGSYSTEM);
     if (result == FALSE) {
         res.setStatusCode(0x01);
-        res.setMessage("Failed to restart the system.");
         res.sendResponse(client_socket);
         CloseHandle(hToken);
         return;
@@ -180,7 +179,6 @@ void WindowCommand::SetVolume(const float absolute, SOCKET& client_socket,const 
         if (SUCCEEDED(hr))
         {
             Response res(header.request_id, 0x00);
-            res.setMessage("Master Volume set successfully.");
             res.sendResponse(client_socket);
             std::cout << "Master Volume set to: " << newVolume * 100.0f << "%" << std::endl;
         }
@@ -188,7 +186,6 @@ void WindowCommand::SetVolume(const float absolute, SOCKET& client_socket,const 
     if (FAILED(hr))
     {
         Response res(header.request_id, 0x03);
-        res.setMessage("Failed to set Master Volume.");
         res.sendResponse(client_socket);
         std::cerr << "Failed to set Master Volume: " << std::hex << hr << std::endl;
     }
@@ -219,7 +216,6 @@ void WindowCommand::HandleRequest(SOCKET client_socket, const PacketHeader &head
         break;
     default: {
         Response res(header.request_id, 0x01);
-        res.setMessage("Invalid request type for WindowCommand.");
         res.sendResponse(client_socket);
         std::cerr << "Invalid request type: " << header.request_type << std::endl;
         break;

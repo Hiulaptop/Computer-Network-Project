@@ -1,9 +1,9 @@
+#include "ConnectingScreen.hpp"
 #include "StartScreen.hpp"
 #include <iostream>
 #include <ws2tcpip.h>
 #include <MainMenu.hpp>
 
-#include "ConnectingScreen.hpp"
 #include "UICore.hpp"
 
 StartScreen::StartScreen(Core &core): Screen(core) {
@@ -23,8 +23,10 @@ void StartScreen::Render(float DT) {
     ImGui::LabelText("##ipLabel", "Please Enter Server IP Here:");
     ImGui::SetCursorPos(m_Core.GetIO().DisplaySize/2.5f - ImVec2(ImGui::CalcTextSize("Please Enter Server IP Here: ").x/2, -10 ));
     ImGui::PushItemWidth(500);
-    if (m_timeout > 0 || m_IP[0] == '\0')
+    if (m_timeout > 0 || m_IP[0] == '\0') {
         ImGui::SetKeyboardFocusHere(0);
+        m_Core.GetStyle().FontScaleDpi = 1.5f;
+    }
     bool isEntered = ImGui::InputTextWithHint("##IPaddress", "0.0.0.0", m_IP, IM_ARRAYSIZE(m_IP), ImGuiInputTextFlags_EnterReturnsTrue);
     ImGui::PopItemWidth();
     ImGui::PopStyleColor();

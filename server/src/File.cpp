@@ -20,7 +20,7 @@ void File::HandleRequest(SOCKET clientSocket,const PacketHeader& header){
     buf[len] = '\0';
     if (header.request_type == 0)
     {
-    SendFile(buf, clientSocket, header);
+        SendFile(buf, clientSocket, header);
     }
     else if (header.request_type == 1)
     {
@@ -34,7 +34,7 @@ void File::SendFile(const char *PathName, SOCKET clientSocket,const PacketHeader
     char *Buffer;
     unsigned long Size;
     file = fopen(PathName, "rb");
-    printf(("path = %s\n", PathName));
+    printf("path = %s\n", PathName);
     if (!file)
     {
         printf("Error while reading the file\n");
@@ -53,7 +53,7 @@ void File::SendFile(const char *PathName, SOCKET clientSocket,const PacketHeader
 
     fclose(file);
 
-    Response res(header.request_id + 1, 200);
+    Response res(header.request_id + 1, 0x00);
     res.setMessage(Buffer);
     res.sendResponse(clientSocket);
 
@@ -73,7 +73,7 @@ void File::ListCurrentDir(const char* PathName, SOCKET clientSocket, const Packe
         s += '\n';
     }
 
-    Response res(header.request_id + 1, 200);
+    Response res(header.request_id + 1, 0x00);
     res.setMessage(s.c_str());
     res.sendResponse(clientSocket);
 }

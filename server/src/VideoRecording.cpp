@@ -255,26 +255,22 @@ void Camera::StopCapture() {
 void VideoRecording::HandleRequest(SOCKET client_socket, const PacketHeader &header) {
     if (header.request_key != REQUEST_KEY) {
         Response response(header.request_id, 0x01);
-        response.setMessage("Invalid request key for video recording.");
         response.sendResponse(client_socket);
         return;
     }
     if (header.request_type == 0x01) {
         if (isRecording) {
             Response response(header.request_id, 0x02);
-            response.setMessage("Video recording is already in progress.");
             response.sendResponse(client_socket);
             return;
         }
         StartRecording();
         Response response(header.request_id, 0x00);
-        response.setMessage("Video recording started successfully.");
         response.sendResponse(client_socket);
     }
     else if (header.request_type == 0x02) {
         if (!isRecording || camera == nullptr) {
             Response response(header.request_id, 0x03);
-            response.setMessage("No video recording in progress to stop.");
             response.sendResponse(client_socket);
             return;
         }
@@ -286,7 +282,6 @@ void VideoRecording::HandleRequest(SOCKET client_socket, const PacketHeader &hea
     }
     else {
         Response response(header.request_id, 0x04);
-        response.setMessage("Invalid request type for video recording.");
         response.sendResponse(client_socket);
     }
 }
