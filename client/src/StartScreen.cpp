@@ -29,7 +29,7 @@ void StartScreen::Render(float DT) {
     ImGui::PopItemWidth();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
-    ImGui::SetCursorPos(m_Core.GetIO().DisplaySize/2.5f - ImVec2(-500/2 , - ImGui::GetTextLineHeightWithSpacing() * 2));
+    ImGui::SetCursorPos(m_Core.GetIO().DisplaySize/2.5f - ImVec2(-250 , - ImGui::GetTextLineHeightWithSpacing() * 2));
     if (ImGui::Button("Connect") || isEntered) {
         if (isValid) {
             m_Core.PushScreen<ConnectingScreen>(m_Core, m_IP);
@@ -40,7 +40,17 @@ void StartScreen::Render(float DT) {
     }
     if (m_timeout > 0) {
         m_timeout -= DT;
+        ImGui::SetCursorPosX(m_Core.GetIO().DisplaySize.x/2.5f - ImGui::CalcTextSize("Please enter a valid IP address.").x / 2.5f - 15);
         ImGui::Text("Please enter a valid IP address.");
+    }
+    ImGui::SetNextWindowFocus();
+    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter() - ImVec2(0,50), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    if (ImGui::BeginPopup("Connection Error")) {
+        ImGui::Text("Failed to connect to the server. Please check your IP address.");
+        if (ImGui::Button("OK")) {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
     }
 }
 

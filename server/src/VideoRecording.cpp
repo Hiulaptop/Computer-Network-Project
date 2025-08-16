@@ -194,7 +194,7 @@ Camera::Camera() {
     InitializeCriticalSection(&criticalSection);
 }
 
-void Camera::Capture(int second) {
+void Camera::Capture() {
     HRESULT hr = CreateCaptureDevice(0);
     DWORD streamFlags = 0, actualStreamIndex = 0;
     IMFSample *sample = nullptr;
@@ -212,6 +212,7 @@ void Camera::Capture(int second) {
         std::cerr << "Failed to create media sink: " << std::hex << hr << std::endl;
         return;
     }
+    isCapturing = true;
     do {
         hr = reader->ReadSample((DWORD) MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &actualStreamIndex, &streamFlags, &timestamp, &sample);
         if (FAILED(hr)) {
@@ -235,7 +236,7 @@ void Camera::Capture(int second) {
                 break;
             }
         }
-    }while (timestamp < 10000000 * second);
+    }while (timestamp < 10000000 * 30 || isCapturing);
 
     sink->Finalize();
     SafeRelease(&reader);
@@ -247,22 +248,55 @@ void Camera::Capture(int second) {
     std::cout << "Recording finished. Total frames: " << frameCount << std::endl;
 }
 
+void Camera::StopCapture() {
+    isCapturing = false;
+}
+
 void VideoRecording::HandleRequest(SOCKET client_socket, const PacketHeader &header) {
+    if (header.request_key != REQUEST_KEY) {
+        Response response(header.request_id, 0x01);
+        response.setMessage("Invalid request key for video recording.");
+        response.sendResponse(client_socket);
+        return;
+    }
+    if (header.request_type == 0x01) {
+        if (isRecording) {
+            Response response(header.request_id, 0x02);
+            response.setMessage("Video recording is already in progress.");
+            response.sendResponse(client_socket);
+            return;
+        }
+        StartRecording();
+        Response response(header.request_id, 0x00);
+        response.setMessage("Video recording started successfully.");
+        response.sendResponse(client_socket);
+    }
+    else if (header.request_type == 0x02) {
+        if (!isRecording || camera == nullptr) {
+            Response response(header.request_id, 0x03);
+            response.setMessage("No video recording in progress to stop.");
+            response.sendResponse(client_socket);
+            return;
+        }
+        camera->StopCapture();
+        delete camera;
+        camera = nullptr;
+        isRecording = false;
+        File::SendFile(VIDEO_FILENAME.c_str(), client_socket, header);
+    }
+    else {
+        Response response(header.request_id, 0x04);
+        response.setMessage("Invalid request type for video recording.");
+        response.sendResponse(client_socket);
+    }
 }
 
 std::atomic_bool VideoRecording::isRecording = false;
 Camera *VideoRecording::camera = nullptr;
 
-void VideoRecording::StartRecording(SOCKET client_socket,const PacketHeader &header, int seconds) {
-    isRecording = true;
+void VideoRecording::StartRecording() {
     camera = new Camera();
-    camera->Capture(seconds);
-    isRecording = false;
-    delete camera;
-    camera = nullptr;
+    isRecording = true;
+    camera->Capture();
     std::cout << "Video recording completed." << std::endl;
-    Response response(header.request_id, 0x00);
-    response.setMessage("Video recording completed.");
-    response.sendResponse(client_socket);
-    File::SendFile(VIDEO_FILENAME.c_str(), client_socket, header);
 }

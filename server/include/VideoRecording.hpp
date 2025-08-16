@@ -37,6 +37,7 @@ public:
     CRITICAL_SECTION criticalSection = {nullptr};
     DWORD streamIndex = 0;
     LONGLONG timestamp = 0;
+    std::atomic_bool isCapturing = false;
     HRESULT CreateCaptureDevice(int deviceIndex);
     HRESULT CreateMediaSink();
     HRESULT GetSourceReader(IMFActivate *device);
@@ -45,7 +46,8 @@ public:
     HRESULT WriteFrame(IMFSample *sample);
 public:
     Camera();
-    void Capture(int second);
+    void Capture();
+    void StopCapture();
 };
 
 class VideoRecording : public FeatureHandler {
@@ -57,7 +59,7 @@ private:
     constexpr static std::string VIDEO_FILENAME = "recording.mp4";
     static HANDLE hThread;
     static DWORD dwThreadID;
-    static void StartRecording(SOCKET client_socket,const PacketHeader &header, int seconds);
+    static void StartRecording();
     static std::atomic_bool isRecording;
     static Camera *camera;
 };

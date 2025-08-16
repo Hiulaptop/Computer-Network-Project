@@ -24,6 +24,13 @@ class RequestHandler {
 public:
     RequestHandler();
     static DWORD WINAPI ProcessClient(LPVOID lpParam);
+
+    static void cleanup() {
+        for (auto & featureHandler : featureHandlers) {
+            delete featureHandler;
+            featureHandler = nullptr;
+        }
+    }
 private:
     static FeatureHandler* featureHandlers[FEATURE_COUNT];
 };

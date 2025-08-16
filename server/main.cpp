@@ -95,12 +95,11 @@ int main(int argc, char *argv[])
         clients.push_back(client_thread);
         idx++;
     }
-
-
     for (HANDLE h : clients)
     {
         CloseHandle(h);
     }
+    RequestHandler::cleanup();
     closesocket(serverSocket);
     WSACleanup();
 	MFShutdown();
