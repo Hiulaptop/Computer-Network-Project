@@ -18,8 +18,8 @@ public:
     //static void SaveBitmapToFile(HBITMAP HBitmap,const PacketHeader& header);
     static std::string GetDIBitsBMP(HBITMAP hBitmap, int width, int height);
     static void ScreenShot(SOCKET& client_socket,const PacketHeader& header);
-    static void ShutDown();
-    static void Restart();
-    static void SetVolume(const float absolute);
+    static void ShutDown(SOCKET& client_socket,const PacketHeader& header);
+    static void Restart(SOCKET& client_socket,const PacketHeader& header);
+    static void SetVolume(const float absolute, SOCKET& client_socket,const PacketHeader& header);
     void HandleRequest(SOCKET client_socket, const PacketHeader &header) override;
 };

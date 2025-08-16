@@ -214,7 +214,111 @@ DWORD VideoFeature::requestingFeature(LPVOID lpParam) {
 }
 
 DWORD WindowFeature::requestingFeature(LPVOID lpParam) {
+    returnValue = -1;
+    auto param = static_cast<RequestParam *>(lpParam);
+    if (param == nullptr) {
+        return -1;
+    }
+    if (param->type <= 0) {
+        std::cerr << "Invalid request type for window feature: " << param->type << std::endl;
+        return -1;
+    }
+    sendRequest(param->type, 0, nullptr);
+    int responseSize = 0;
+    char *responseData = nullptr;
+    int res = receiveResponse(responseSize, &responseData);
+    if (res == 0x01) {
+        std::cerr << "Invalid request key for window command." << std::endl;
+        if (responseData != nullptr) {
+            delete[] responseData;
+        }
+        return returnValue = res;
+    }
+    if (res == 0x02) {
+        std::cerr << "Unable to open process token for shutdown/restart." << std::endl;
+        if (responseData != nullptr) {
+            delete[] responseData;
+        }
+        return returnValue = res;
+    }
+    if (res == 0x03) {
+        std::cerr << "Failed to set Master Volumn." << std::endl;
+        if (responseData != nullptr) {
+            delete[] responseData;
+        }
+        return returnValue = res;
+    }
+    if (res == 0x00) {
+        if (param->type == 1) {
+            std::cout << "Shutdown command executed successfully." << std::endl;
+        } else if (param->type == 2) {
+            std::cout << "Restart command executed successfully." << std::endl;
+        } else if (param->type == 3) {
+            std::cout << "Master Volumn set successfully." << std::endl;
+        }
+        if (responseData != nullptr) {
+            delete[] responseData;
+        }
+        return returnValue = res;
+    }
+    std::cerr << "Unknown response status code: " << res << std::endl;
+    if (responseData != nullptr) {
+        delete[] responseData;
+    }
+    return -1;
 }
 
 DWORD ProcessFeature::requestingFeature(LPVOID lpParam) {
+    returnValue = -1;
+    auto param = static_cast<RequestParam *>(lpParam);
+    if (param == nullptr) {
+        return -1;
+    }
+    if (param->type <= 0) {
+        std::cerr << "Invalid request type for process feature: " << param->type << std::endl;
+        return -1;
+    }
+    sendRequest(param->type, param->size, param->data);
+    int responseSize = 0;
+    char *responseData = nullptr;
+    int res = receiveResponse(responseSize, &responseData);
+    if (res == 0x01) {
+        std::cerr << "Failed to terminate process." << std::endl;
+        if (responseData != nullptr) {
+            delete[] responseData;
+        }
+        return returnValue = res;
+    }
+    if (res == 0x02) {
+        std::cerr << "Failed to start process." << std::endl;
+        if (responseData != nullptr) {
+            delete[] responseData;
+        }
+        return returnValue = res;
+    }
+    if (res == 0x03) {
+        std::cerr << "Unknown process type." << std::endl;
+        if (responseData != nullptr) {
+            delete[] responseData;
+        }
+        return returnValue = res;
+    }
+    if (res == 0x00) {
+        if (param->type == 1) {
+            std::cout << "Process terminated successfully." << std::endl;
+        } else if (param->type == 2) {
+            std::cout << "Process started successfully." << std::endl;
+        } else if (param->type == 3) {
+            std::cout << "Process list received successfully." << std::endl;
+        }
+        if (responseData != nullptr) {
+            delete[] responseData;
+        }
+        return returnValue = res;
+    }
+    std::cerr << "Unknown response status code: " << res << std::endl;
+    if (responseData != nullptr) {
+        delete[] responseData;
+    }
+    return -1;
 }

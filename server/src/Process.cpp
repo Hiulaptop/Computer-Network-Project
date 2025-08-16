@@ -109,28 +109,43 @@ std::string Process::ProcessListToMessage(std::vector<ProcessInfo>& ProcessList)
 void Process::HandleRequest(SOCKET client_socket, const PacketHeader &header) {
     if (header.request_key != REQUEST_KEY) {
         std::cerr << "Invalid request key." << std::endl;
+        closesocket(client_socket);
         return;
     }
     if (header.request_type == 0x01) {
         auto ProcessList = ListProcess();
         std::string response = ProcessListToMessage(ProcessList);
-        Response res(header.request_id + 1, 200);
+        Response res(header.request_id + 1, 0x00);
         res.setMessage(response);
         res.sendResponse(client_socket);
     } else if (header.request_type == 0x02) {
         int PID;
         recv(client_socket, reinterpret_cast<char*>(&PID), sizeof(PID), 0);
         bool result = TerminateProcessByID(PID);
-        std::string response = result ? "Process terminated successfully." : "Failed to terminate process.";
-        send(client_socket, response.c_str(), response.size(), 0);
+        Response res(header.request_id + 1, result ? 0x00 : 0x01);
+        if (result) {
+            res.setMessage("Process terminated successfully.");
+        } else {
+            res.setMessage("Failed to terminate process.");
+        }
+        res.sendResponse(client_socket);
     } else if (header.request_type == 0x03) {
         char filePath[260];
         recv(client_socket, filePath, sizeof(filePath), 0);
         bool result = OpenFileByPath(filePath);
-        std::string response = result ? "File opened successfully." : "Failed to open file.";
-        send(client_socket, response.c_str(), response.size(), 0);
+        Response res(header.request_id + 1, result ? 0x00 : 0x02);
+        if (result) {
+            res.setMessage("File opened successfully.");
+        } else {
+            res.setMessage("Failed to open file.");
+        }
+        res.sendResponse(client_socket);
     } else {
         std::cerr << "Unknown request type." << std::endl;
+        Response res(header.request_id + 1, 0x03);
+        res.setMessage("Unknown request type.");
+        res.sendResponse(client_socket);
+        return;
     }
     closesocket(client_socket);
 }

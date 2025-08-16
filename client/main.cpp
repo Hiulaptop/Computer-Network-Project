@@ -5,7 +5,6 @@
 #include "UICore.hpp"
 
 int main() {
-    WORD wVersionRequested = MAKEWORD(2, 2);
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
         std::cerr << "Failed to initialize Winsock!" << std::endl;
