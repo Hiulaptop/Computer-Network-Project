@@ -57,11 +57,14 @@ public:
     }
 
     void sendResponse(const SOCKET clientSocket) {
-        if (clientSocket == INVALID_SOCKET || message == nullptr) {
+        if (clientSocket == INVALID_SOCKET) {
             return;
         }
         header.packageSize = sizeof(header) + messageLength;
         send(clientSocket, (char*)&header, sizeof(header), 0);
+        if (messageLength == 0 || message == nullptr) {
+            return;
+        }
         send(clientSocket, message, messageLength, 0);
     }
 };

@@ -69,8 +69,34 @@ void File::ListCurrentDir(const char* PathName, SOCKET clientSocket, const Packe
     std::string s;
     for (const auto& entry : std::filesystem::directory_iterator(PathName)) {
         // std::cout << entry.path() << std::endl;
-        s += entry.path().string();
-        s += '\n';
+        if (entry.is_directory()) {
+            s += "Dir\n";
+            s += entry.path().filename().string();
+            s += '\n';
+            s += "0\n";
+        } else if (entry.is_regular_file()) {
+            s += "File\n";
+            s += entry.path().filename().string();
+            s += '\n';
+
+            double size = entry.file_size();
+            double tomb = size/1000.0f;
+            if (tomb <= 0.0001f){
+                s += to_string(size);
+                s += '\n';
+            }
+            else{
+                s += to_string(tomb);
+                s += '\n';
+            }
+            
+        } else {
+            s += "None\n";
+            s += entry.path().filename().string();
+            s += '\n';
+            s += "0\n";
+        }
+        
     }
 
     Response res(header.request_id + 1, 200);

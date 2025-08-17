@@ -99,7 +99,6 @@ std::string Process::ProcessListToMessage(std::vector<ProcessInfo>& ProcessList)
 
         buffer.append(reinterpret_cast<char*>(&p.MemoryUsage), sizeof(p.MemoryUsage));
 
-
         buffer.append(reinterpret_cast<char*>(&p.CPUTimeUser), sizeof(p.CPUTimeUser));
     }
 
@@ -109,28 +108,50 @@ std::string Process::ProcessListToMessage(std::vector<ProcessInfo>& ProcessList)
 void Process::HandleRequest(SOCKET client_socket, const PacketHeader &header) {
     if (header.request_key != REQUEST_KEY) {
         std::cerr << "Invalid request key." << std::endl;
+        closesocket(client_socket);
         return;
     }
     if (header.request_type == 0x01) {
         auto ProcessList = ListProcess();
-        std::string response = ProcessListToMessage(ProcessList);
-        Response res(header.request_id + 1, 200);
-        res.setMessage(response);
-        res.sendResponse(client_socket);
+        std::cout << "Process list received, count: " << ProcessList.size() << std::endl;
+        ResponseHeader rHeader;
+        rHeader.responseID = header.request_id + 1;
+        rHeader.statusCode = 0x00;
+        int size = sizeof(rHeader) + sizeof(uint16_t) + ProcessList.size() * (sizeof(DWORD) + sizeof(uint16_t) + sizeof(DWORD) + sizeof(SIZE_T) + sizeof(ULONGLONG));
+        for (const auto& p : ProcessList) {
+            uint16_t nameLength = static_cast<uint16_t>(strlen(p.Name));
+            size += nameLength;
+        }
+        rHeader.packageSize = size;
+        send(client_socket, reinterpret_cast<const char*>(&rHeader), sizeof(rHeader), 0);
+        uint32_t count = static_cast<uint32_t>(ProcessList.size());
+        send(client_socket, reinterpret_cast<char*>(&count), sizeof(count), 0);
+        for (const auto& p : ProcessList) {
+            send(client_socket, reinterpret_cast<const char*>(&p.PID), sizeof(p.PID), 0);
+            uint16_t nameLength = static_cast<uint16_t>(strlen(p.Name));
+            send(client_socket, reinterpret_cast<const char*>(&nameLength), sizeof(nameLength), 0);
+            send(client_socket, p.Name, nameLength, 0);
+            send(client_socket, reinterpret_cast<const char*>(&p.ParentPID), sizeof(p.ParentPID), 0);
+            send(client_socket, reinterpret_cast<const char*>(&p.MemoryUsage), sizeof(p.MemoryUsage), 0);
+            send(client_socket, reinterpret_cast<const char*>(&p.CPUTimeUser), sizeof(p.CPUTimeUser), 0);
+        }
     } else if (header.request_type == 0x02) {
         int PID;
         recv(client_socket, reinterpret_cast<char*>(&PID), sizeof(PID), 0);
         bool result = TerminateProcessByID(PID);
-        std::string response = result ? "Process terminated successfully." : "Failed to terminate process.";
-        send(client_socket, response.c_str(), response.size(), 0);
+        Response res(header.request_id + 1, result ? 0x00 : 0x01);
+        res.sendResponse(client_socket);
     } else if (header.request_type == 0x03) {
         char filePath[260];
         recv(client_socket, filePath, sizeof(filePath), 0);
         bool result = OpenFileByPath(filePath);
-        std::string response = result ? "File opened successfully." : "Failed to open file.";
-        send(client_socket, response.c_str(), response.size(), 0);
+        Response res(header.request_id + 1, result ? 0x00 : 0x02);
+        res.sendResponse(client_socket);
     } else {
         std::cerr << "Unknown request type." << std::endl;
+        Response res(header.request_id + 1, 0x03);
+        res.sendResponse(client_socket);
+        return;
     }
     closesocket(client_socket);
 }

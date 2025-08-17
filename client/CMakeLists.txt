@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.13)
 project(NetworkClient)
 
 set(CMAKE_CXX_STANDARD 23) # Enable the C++23 standard
+set(IMGUI_DEFINE_MATH_OPERATORS)
 
 include(FetchContent)
 
@@ -46,6 +47,32 @@ target_include_directories(imgui PUBLIC
         ${imgui_source_SOURCE_DIR}
 )
 
+# ========== Find CURL ==========
+include(FetchContent)
+FetchContent_Declare(download_curl
+        URL https://curl.se/windows/dl-8.15.0_4/curl-8.15.0_4-win64-mingw.zip
+        DOWNLOAD_NO_EXTRACT true
+)
+
+FetchContent_MakeAvailable(download_curl)
+
+file(ARCHIVE_EXTRACT
+        INPUT ${download_curl_SOURCE_DIR}/curl-8.15.0_4-win64-mingw.zip
+        DESTINATION ${CMAKE_SOURCE_DIR}/client/external/
+)
+#
+set(CURL_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/client/external/curl-8.15.0_4-win64-mingw/include)
+set(CURL_LIBRARY ${CMAKE_SOURCE_DIR}/client/external/curl-8.15.0_4-win64-mingw/bin/libcurl-x64.dll)
+set(CURL_USE_STATIC_LIBS ON)
+set(CURL_NO_CURL_CMAKE ON)
+add_definitions(-DCURL_STATICLIB)
+
+find_package(CURL REQUIRED)
+include_directories(${CURL_INCLUDE_DIR})
+
+set_target_properties(CURL::libcurl PROPERTIES
+        IMPORTED_LOCATION ${CURL_LIBRARY})
+
 file(GLOB_RECURSE ClientFeatureSource "src/*.cpp")
 
 add_library(ClientFeature STATIC
@@ -64,6 +91,7 @@ target_link_libraries(ClientFeature PUBLIC
         imgui
         glfw
         OpenGL::GL
+        CURL::libcurl
 )
 
 add_executable(NetworkClient main.cpp)

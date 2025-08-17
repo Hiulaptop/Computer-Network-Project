@@ -153,6 +153,7 @@ void Core::Update() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::Begin("Content", nullptr, GetWindowFlags());
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, windowBorderSize);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, windowRounding);
 

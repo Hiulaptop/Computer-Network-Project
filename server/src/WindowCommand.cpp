@@ -11,7 +11,7 @@
 //     // CLSIDFromString(L"{557CF406-1A04-11D3-9A73-0000F81EF32E}", &pngClsid); // PNG
 //
 //     Response res(header.request_id + 1, 200);
-//     res.setMessage(bitmap.);
+//     std::cerr << (bitmap.);
 //
 //     //bitmap.Save(filename, &pngClsid, NULL);
 //
@@ -76,7 +76,7 @@ void WindowCommand::ScreenShot(SOCKET& client_socket,const PacketHeader& header)
 
     //SaveBitmapToFile(hBitmap,header);
     std::string message = GetDIBitsBMP(hBitmap,width,height);
-    Response res(header.request_id + 1, 200);
+    Response res(header.request_id + 1, 0x00);
     res.setMessage(message);
     res.sendResponse(client_socket);
     DeleteObject(hBitmap);
@@ -84,42 +84,69 @@ void WindowCommand::ScreenShot(SOCKET& client_socket,const PacketHeader& header)
     ReleaseDC(hDesktopWnd, hDesktopDC);
 }
 
-void WindowCommand::ShutDown()
+void WindowCommand::ShutDown(SOCKET& client_socket,const PacketHeader& header)
 {
     HANDLE hToken;
     TOKEN_PRIVILEGES tkp;
 
 
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken))
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken)) {
+        Response res(header.request_id, 0x02);
+        std::cerr << ("Failed to open process token for shutdown.");
+        res.sendResponse(client_socket);
         return;
+    }
 
     LookupPrivilegeValue(NULL, SE_SHUTDOWN_NAME, &tkp.Privileges[0].Luid);
     tkp.PrivilegeCount = 1;
     tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
     AdjustTokenPrivileges(hToken, FALSE, &tkp, 0, NULL, 0);
 
+    Response res(header.request_id, 0x00);
+    std::cerr << ("System shutdown initiated successfully.");
     BOOL result = ExitWindowsEx(EWX_SHUTDOWN | EWX_FORCE, SHTDN_REASON_MAJOR_OPERATINGSYSTEM);
-
+    if (result == FALSE) {
+        res.setStatusCode(0x01);
+        std::cerr << ("Failed to shutdown the system.");
+        res.sendResponse(client_socket);
+        CloseHandle(hToken);
+        return;
+    }
+    res.sendResponse(client_socket);
+    CloseHandle(hToken);
 }
 
-void WindowCommand::Restart()
+void WindowCommand::Restart(SOCKET& client_socket,const PacketHeader& header)
 {
     HANDLE hToken;
     TOKEN_PRIVILEGES tkp;
 
 
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken))
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken)) {
+        Response res(header.request_id, 0x02);
+        std::cerr << ("Failed to open process token for restart.");
+        res.sendResponse(client_socket);
         return;
+    }
 
     LookupPrivilegeValue(NULL, SE_SHUTDOWN_NAME, &tkp.Privileges[0].Luid);
     tkp.PrivilegeCount = 1;
     tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
     AdjustTokenPrivileges(hToken, FALSE, &tkp, 0, NULL, 0);
-
+    Response res(header.request_id, 0x00);
+    std::cerr << ("System restart initiated successfully.");
     BOOL result = ExitWindowsEx(EWX_REBOOT | EWX_FORCE, SHTDN_REASON_MAJOR_OPERATINGSYSTEM);
+    if (result == FALSE) {
+        res.setStatusCode(0x01);
+        res.sendResponse(client_socket);
+        CloseHandle(hToken);
+        return;
+    }
+    res.sendResponse(client_socket);
+    CloseHandle(hToken);
 }
 
-void WindowCommand::SetVolume(const float absolute)
+void WindowCommand::SetVolume(const float absolute, SOCKET& client_socket,const PacketHeader& header)
 {
     CoInitialize(NULL);
     IMMDeviceEnumerator* pEnumerator = NULL;
@@ -151,10 +178,17 @@ void WindowCommand::SetVolume(const float absolute)
         hr = pEndpointVolume->SetMasterVolumeLevelScalar(newVolume, NULL); // NULL for no event context
         if (SUCCEEDED(hr))
         {
+            Response res(header.request_id, 0x00);
+            res.sendResponse(client_socket);
             std::cout << "Master Volume set to: " << newVolume * 100.0f << "%" << std::endl;
         }
     }
-
+    if (FAILED(hr))
+    {
+        Response res(header.request_id, 0x03);
+        res.sendResponse(client_socket);
+        std::cerr << "Failed to set Master Volume: " << std::hex << hr << std::endl;
+    }
     if (pEndpointVolume) pEndpointVolume->Release();
     if (pDevice) pDevice->Release();
     if (pEnumerator) pEnumerator->Release();
@@ -163,38 +197,29 @@ void WindowCommand::SetVolume(const float absolute)
 
 void WindowCommand::HandleRequest(SOCKET client_socket, const PacketHeader &header)
 {
-    int len = header.packet_size - sizeof(header);
-
-    if (len < 0)
-    {
-        return;
-    }
-    char * buf = new char[len + 1];
-    int recive = recv(client_socket, buf, len, 0);
-
-    if (recive <= 0){
-        std::cerr << "Failed to receive header from client." << std::endl;
-        closesocket(client_socket);
-        return;
-    }
-    buf[len] = '\0';
     switch (header.request_type)
     {
     case 0:
         ScreenShot(client_socket,header);
         break;
     case 1:
-        SetVolume(0.1f);
+        SetVolume(0.1f,client_socket,header);
         break;
     case 2:
-        SetVolume(-0.1f);
+        SetVolume(-0.1f,client_socket,header);
         break;
     case 3:
-        ShutDown();
+        ShutDown(client_socket,header);
         break;
     case 4:
-        Restart();
+        Restart(client_socket,header);
         break;
+    default: {
+        Response res(header.request_id, 0x01);
+        res.sendResponse(client_socket);
+        std::cerr << "Invalid request type: " << header.request_type << std::endl;
+        break;
+    }
     }
 }
 

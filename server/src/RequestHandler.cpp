@@ -31,6 +31,13 @@ DWORD RequestHandler::ProcessClient(LPVOID lpParam) {
         closesocket(clientSocket);
         return 1;
     }
+    if (header.request_key == FEATURE_COUNT) {
+        std::cout << "PING." << std::endl;
+        Response res(header.request_id, 1);
+        res.sendResponse(clientSocket);
+        closesocket(clientSocket);
+        return 0;
+    }
     featureHandlers[header.request_key]->HandleRequest(clientSocket,header);
     closesocket(clientSocket);
     return 0;
