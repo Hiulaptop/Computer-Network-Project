@@ -38,6 +38,7 @@ public:
     DWORD streamIndex = 0;
     LONGLONG timestamp = 0;
     std::atomic_bool isCapturing = false;
+    std::atomic_bool isStopping = false;
     HRESULT CreateCaptureDevice(int deviceIndex);
     HRESULT CreateMediaSink();
     HRESULT GetSourceReader(IMFActivate *device);
@@ -55,11 +56,11 @@ public:
     void HandleRequest(SOCKET client_socket, const PacketHeader &header) override;
 
 private:
-    constexpr static int REQUEST_KEY = 0x03;
+    constexpr static int REQUEST_KEY = 0x02;
     constexpr static std::string VIDEO_FILENAME = "recording.mp4";
     static HANDLE hThread;
     static DWORD dwThreadID;
-    static void StartRecording();
+    static DWORD StartRecording(LPVOID *lpParam);
     static std::atomic_bool isRecording;
     static Camera *camera;
 };

