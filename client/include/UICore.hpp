@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <vector>
+#include <cstdint>
 
 #include "imgui.h"
 #include "GLFW/glfw3.h"
@@ -13,7 +14,11 @@ private:
     ImGuiStyle *m_Style = nullptr;
     GLFWwindow *m_Window = nullptr;
 
+    std::unique_ptr<Screen> m_ChangedScreen = nullptr;
+
     bool m_ShouldPop = false;
+    bool m_ShouldChangeState = false;
+
 
     void Update();
 
@@ -50,5 +55,17 @@ public:
         this->PushScreen(std::make_unique<T>(std::forward<Args>(args)...));
     }
 
+    template<typename T, typename... Args>
+    bool ChangeScreen(Args &&... args) {
+        m_ChangedScreen = std::make_unique<T>(std::forward<Args>(args)...);
+        m_ShouldPop = true;
+        m_ShouldChangeState = true;
+        return true;
+    }
+
     void PopScreen();
+
+    float GetScaleFactor() const {
+        return m_ScaleFactor;
+    }
 };

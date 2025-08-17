@@ -1,8 +1,15 @@
 #include "File.hpp"
 #include "winsock2.h"
+#include <filesystem>
+
 void File::HandleRequest(SOCKET clientSocket,const PacketHeader& header){
-    char * buf = nullptr;
     int len = header.packet_size - sizeof(header);
+
+    if (len < 0)
+    {
+        return;
+    }
+    char * buf = new char[len + 1];
     int recive = recv(clientSocket, buf, len, 0);
 
     if (recive <= 0){
@@ -10,28 +17,33 @@ void File::HandleRequest(SOCKET clientSocket,const PacketHeader& header){
         closesocket(clientSocket);
         return;
     }
-
-    SendFile(buf, clientSocket, header);
+    buf[len] = '\0';
+    if (header.request_type == 0)
+    {
+        SendFile(buf, clientSocket, header);
+    }
+    else if (header.request_type == 1)
+    {
+        ListCurrentDir(buf, clientSocket, header);
+    }
+    delete[] buf;
 }
 
 void File::SendFile(const char *PathName, SOCKET clientSocket,const PacketHeader& header)
 {
-    FILE *file;
-    char *Buffer;
-    unsigned long Size;
-    file = fopen(PathName, "rb");
-
+    FILE *file = fopen(PathName, "rb");
+    printf("path = %s\n", PathName);
     if (!file)
     {
-        printf("Error while readaing the file\n");
+        printf("Error while reading the file\n");
         getchar();
         return;
     }
 
     fseek(file, 0, SEEK_END);
-    Size = ftell(file);
+    unsigned long Size = ftell(file);
     fseek(file, 0, SEEK_SET);
-    Buffer = new char[Size];
+    char *Buffer = new char[Size + 1];
     fread(Buffer, Size, 1, file);
 
     char cSize[MAX_PATH];
@@ -39,7 +51,7 @@ void File::SendFile(const char *PathName, SOCKET clientSocket,const PacketHeader
 
     fclose(file);
 
-    Response res(header.request_id + 1, 200);
+    Response res(header.request_id + 1, 0x00);
     res.setMessage(Buffer);
     res.sendResponse(clientSocket);
 
@@ -48,4 +60,44 @@ void File::SendFile(const char *PathName, SOCKET clientSocket,const PacketHeader
     //     std::cerr << "Failed to send file to client." << std::endl;
     // }
     delete[] Buffer;
+}
+
+void File::ListCurrentDir(const char* PathName, SOCKET clientSocket, const PacketHeader& header)
+{
+    std::string s;
+    for (const auto& entry : std::filesystem::directory_iterator(PathName)) {
+        // std::cout << entry.path() << std::endl;
+        if (entry.is_directory()) {
+            s += "D";
+            s += entry.path().filename().string();
+            s += '\n';
+            s += "0\n";
+        } else if (entry.is_regular_file()) {
+            s += "F";
+            s += entry.path().filename().string();
+            s += '\n';
+
+            double size = entry.file_size();
+            double tomb = size/1000.0f;
+            if (tomb <= 0.0001f){
+                s += std::to_string(size);
+                s += "kb\n";
+            }
+            else{
+                s += std::to_string(tomb);
+                s += "mb\n";
+            }
+            
+        } else {
+            s += "N";
+            s += entry.path().filename().string();
+            s += '\n';
+            s += "0\n";
+        }
+        
+    }
+
+    Response res(header.request_id + 1, 0x00);
+    res.setMessage(s.c_str());
+    res.sendResponse(clientSocket);
 }

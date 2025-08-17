@@ -194,7 +194,7 @@ Camera::Camera() {
     InitializeCriticalSection(&criticalSection);
 }
 
-void Camera::Capture(int second) {
+void Camera::Capture() {
     HRESULT hr = CreateCaptureDevice(0);
     DWORD streamFlags = 0, actualStreamIndex = 0;
     IMFSample *sample = nullptr;
@@ -212,6 +212,7 @@ void Camera::Capture(int second) {
         std::cerr << "Failed to create media sink: " << std::hex << hr << std::endl;
         return;
     }
+    isCapturing = true;
     do {
         hr = reader->ReadSample((DWORD) MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &actualStreamIndex, &streamFlags, &timestamp, &sample);
         if (FAILED(hr)) {
@@ -235,7 +236,7 @@ void Camera::Capture(int second) {
                 break;
             }
         }
-    }while (timestamp < 10000000 * second);
+    }while (timestamp < 10000000 * 30 && isCapturing);
 
     sink->Finalize();
     SafeRelease(&reader);
@@ -244,25 +245,90 @@ void Camera::Capture(int second) {
     wSymbolicLink = nullptr;
     cchSymbolicLink = 0;
     DeleteCriticalSection(&criticalSection);
+    isStopping = true;
     std::cout << "Recording finished. Total frames: " << frameCount << std::endl;
 }
 
+void Camera::StopCapture() {
+    isCapturing = false;
+    while (!isStopping){}
+}
+
 void VideoRecording::HandleRequest(SOCKET client_socket, const PacketHeader &header) {
+    if (header.request_key != REQUEST_KEY) {
+        Response response(header.request_id, 0x01);
+        response.sendResponse(client_socket);
+        return;
+    }
+    if (header.request_type == 0x01) {
+        if (isRecording) {
+            Response response(header.request_id, 0x02);
+            response.sendResponse(client_socket);
+            return;
+        }
+        CreateThread(
+            nullptr,
+            0,
+            LPTHREAD_START_ROUTINE(&VideoRecording::StartRecording),
+            nullptr,
+            0,
+            nullptr
+        );
+        Response response(header.request_id, 0x00);
+        response.sendResponse(client_socket);
+    }
+    else if (header.request_type == 0x02) {
+        if (!isRecording || camera == nullptr) {
+            Response response(header.request_id, 0x03);
+            response.sendResponse(client_socket);
+            return;
+        }
+        camera->isStopping = false;
+        camera->StopCapture();
+        delete camera;
+        camera = nullptr;
+        isRecording = false;
+        FILE *file = fopen(VIDEO_FILENAME.c_str(), "rb");
+        if (!file)
+        {
+            printf("Error while reading the file\n");
+            getchar();
+            return;
+        }
+
+        fseek(file, 0, SEEK_END);
+        unsigned long Size = ftell(file);
+        fseek(file, 0, SEEK_SET);
+        char *Buffer = new char[Size + 1];
+        fread(Buffer, Size, 1, file);
+
+        fclose(file);
+        ResponseHeader responseHeader( Size + sizeof(ResponseHeader), header.request_id + 1, 0x00);
+        send(client_socket, (char*)&responseHeader, sizeof(responseHeader), 0);
+        int sent = send(client_socket, Buffer, Size, 0);
+        while (sent < Size) {
+            int bytesSent = send(client_socket, Buffer + sent, Size - sent, 0);
+            if (bytesSent <= 0) {
+                std::cerr << "Failed to send video data." << std::endl;
+                break;
+            }
+            sent += bytesSent;
+        }
+        delete[] Buffer;
+    }
+    else {
+        Response response(header.request_id, 0x04);
+        response.sendResponse(client_socket);
+    }
 }
 
 std::atomic_bool VideoRecording::isRecording = false;
 Camera *VideoRecording::camera = nullptr;
 
-void VideoRecording::StartRecording(SOCKET client_socket,const PacketHeader &header, int seconds) {
-    isRecording = true;
+DWORD VideoRecording::StartRecording(LPVOID *lpParam) {
     camera = new Camera();
-    camera->Capture(seconds);
-    isRecording = false;
-    delete camera;
-    camera = nullptr;
+    isRecording = true;
+    camera->Capture();
     std::cout << "Video recording completed." << std::endl;
-    Response response(header.request_id, 0x00);
-    response.setMessage("Video recording completed.");
-    response.sendResponse(client_socket);
-    File::SendFile(VIDEO_FILENAME.c_str(), client_socket, header);
+    return 0;
 }
