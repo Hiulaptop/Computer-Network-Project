@@ -53,6 +53,7 @@ void File::SendFile(const char *PathName, SOCKET clientSocket,const PacketHeader
 
     fclose(file);
 
+    Response res(header.request_id + 1, 200);
     res.setMessage(Buffer);
     res.sendResponse(clientSocket);
 
@@ -98,6 +99,7 @@ void File::ListCurrentDir(const char* PathName, SOCKET clientSocket, const Packe
         
     }
 
+    Response res(header.request_id + 1, 200);
     res.setMessage(s.c_str());
     res.sendResponse(clientSocket);
 }
