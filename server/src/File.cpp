@@ -20,7 +20,7 @@ void File::HandleRequest(SOCKET clientSocket,const PacketHeader& header){
     buf[len] = '\0';
     if (header.request_type == 0)
     {
-        SendFile(buf, clientSocket, header);
+    SendFile(buf, clientSocket, header);
     }
     else if (header.request_type == 1)
     {
@@ -34,7 +34,7 @@ void File::SendFile(const char *PathName, SOCKET clientSocket,const PacketHeader
     char *Buffer;
     unsigned long Size;
     file = fopen(PathName, "rb");
-    printf("path = %s\n", PathName);
+    printf(("path = %s\n", PathName));
     if (!file)
     {
         printf("Error while reading the file\n");
@@ -53,7 +53,6 @@ void File::SendFile(const char *PathName, SOCKET clientSocket,const PacketHeader
 
     fclose(file);
 
-    Response res(header.request_id + 1, 0x00);
     res.setMessage(Buffer);
     res.sendResponse(clientSocket);
 
@@ -69,11 +68,36 @@ void File::ListCurrentDir(const char* PathName, SOCKET clientSocket, const Packe
     std::string s;
     for (const auto& entry : std::filesystem::directory_iterator(PathName)) {
         // std::cout << entry.path() << std::endl;
-        s += entry.path().string();
-        s += '\n';
+        if (entry.is_directory()) {
+            s += "Dir\n";
+            s += entry.path().filename().string();
+            s += '\n';
+            s += "0\n";
+        } else if (entry.is_regular_file()) {
+            s += "File\n";
+            s += entry.path().filename().string();
+            s += '\n';
+
+            double size = entry.file_size();
+            double tomb = size/1000.0f;
+            if (tomb <= 0.0001f){
+                s += to_string(size);
+                s += '\n';
+            }
+            else{
+                s += to_string(tomb);
+                s += '\n';
+            }
+            
+        } else {
+            s += "None\n";
+            s += entry.path().filename().string();
+            s += '\n';
+            s += "0\n";
+        }
+        
     }
 
-    Response res(header.request_id + 1, 0x00);
     res.setMessage(s.c_str());
     res.sendResponse(clientSocket);
 }
