@@ -20,21 +20,19 @@ void File::HandleRequest(SOCKET clientSocket,const PacketHeader& header){
     buf[len] = '\0';
     if (header.request_type == 0)
     {
-    SendFile(buf, clientSocket, header);
+        SendFile(buf, clientSocket, header);
     }
     else if (header.request_type == 1)
     {
         ListCurrentDir(buf, clientSocket, header);
     }
+    delete[] buf;
 }
 
 void File::SendFile(const char *PathName, SOCKET clientSocket,const PacketHeader& header)
 {
-    FILE *file;
-    char *Buffer;
-    unsigned long Size;
-    file = fopen(PathName, "rb");
-    printf(("path = %s\n", PathName));
+    FILE *file = fopen(PathName, "rb");
+    printf("path = %s\n", PathName);
     if (!file)
     {
         printf("Error while reading the file\n");
@@ -43,9 +41,9 @@ void File::SendFile(const char *PathName, SOCKET clientSocket,const PacketHeader
     }
 
     fseek(file, 0, SEEK_END);
-    Size = ftell(file);
+    unsigned long Size = ftell(file);
     fseek(file, 0, SEEK_SET);
-    Buffer = new char[Size + 1];
+    char *Buffer = new char[Size + 1];
     fread(Buffer, Size, 1, file);
 
     char cSize[MAX_PATH];
@@ -53,7 +51,7 @@ void File::SendFile(const char *PathName, SOCKET clientSocket,const PacketHeader
 
     fclose(file);
 
-    Response res(header.request_id + 1, 200);
+    Response res(header.request_id + 1, 0x00);
     res.setMessage(Buffer);
     res.sendResponse(clientSocket);
 
@@ -70,28 +68,28 @@ void File::ListCurrentDir(const char* PathName, SOCKET clientSocket, const Packe
     for (const auto& entry : std::filesystem::directory_iterator(PathName)) {
         // std::cout << entry.path() << std::endl;
         if (entry.is_directory()) {
-            s += "Dir\n";
+            s += "D";
             s += entry.path().filename().string();
             s += '\n';
             s += "0\n";
         } else if (entry.is_regular_file()) {
-            s += "File\n";
+            s += "F";
             s += entry.path().filename().string();
             s += '\n';
 
             double size = entry.file_size();
             double tomb = size/1000.0f;
             if (tomb <= 0.0001f){
-                s += to_string(size);
-                s += '\n';
+                s += std::to_string(size);
+                s += "kb\n";
             }
             else{
-                s += to_string(tomb);
-                s += '\n';
+                s += std::to_string(tomb);
+                s += "mb\n";
             }
             
         } else {
-            s += "None\n";
+            s += "N";
             s += entry.path().filename().string();
             s += '\n';
             s += "0\n";
@@ -99,7 +97,7 @@ void File::ListCurrentDir(const char* PathName, SOCKET clientSocket, const Packe
         
     }
 
-    Response res(header.request_id + 1, 200);
+    Response res(header.request_id + 1, 0x00);
     res.setMessage(s.c_str());
     res.sendResponse(clientSocket);
 }

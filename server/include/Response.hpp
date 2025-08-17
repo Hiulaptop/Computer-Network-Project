@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <cstring>
+#include <iostream>
 #include <string>
 #include <winsock2.h>
 
@@ -65,6 +66,10 @@ public:
         if (messageLength == 0 || message == nullptr) {
             return;
         }
-        send(clientSocket, message, messageLength, 0);
+        int sentBytes = 0;
+        sentBytes = send(clientSocket, message, messageLength, 0);
+        if (sentBytes != messageLength) {
+            std::cerr << "Failed to send complete response. Sent: " << sentBytes << ", Expected: " << messageLength << std::endl;
+        }
     }
 };

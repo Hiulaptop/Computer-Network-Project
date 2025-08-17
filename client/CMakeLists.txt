@@ -41,6 +41,16 @@ FetchContent_Declare(GLFW
 
 FetchContent_MakeAvailable(GLFW)
 
+# LINK STB
+FetchContent_Declare(stb
+    GIT_REPOSITORY https://github.com/nothings/stb
+    GIT_SHALLOW ON
+    EXCLUDE_FROM_ALL
+    SYSTEM
+)
+
+FetchContent_MakeAvailable(stb)
+
 target_link_libraries(imgui PUBLIC glfw)
 
 target_include_directories(imgui PUBLIC
@@ -81,11 +91,18 @@ add_library(ClientFeature STATIC
 
 target_include_directories(ClientFeature PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${stb_SOURCE_DIR}
 )
 
 #if(WIN32)
     target_link_libraries(ClientFeature PRIVATE ws2_32)
     target_link_libraries(ClientFeature PRIVATE wsock32)
+    target_link_libraries(ClientFeature PRIVATE Psapi)
+    target_link_libraries(ClientFeature PRIVATE Shlwapi)
+    target_link_libraries(ClientFeature PRIVATE Mf)
+    target_link_libraries(ClientFeature PRIVATE Mfplat)
+    target_link_libraries(ClientFeature PRIVATE Mfreadwrite)
+    target_link_libraries(ClientFeature PRIVATE Mfuuid)
 #endif()
 target_link_libraries(ClientFeature PUBLIC
         imgui
@@ -99,10 +116,18 @@ add_executable(NetworkClient main.cpp)
 #if(WIN32)
 target_link_libraries(NetworkClient PRIVATE ws2_32)
 target_link_libraries(NetworkClient PRIVATE wsock32)
+target_link_libraries(NetworkClient PRIVATE Psapi)
+target_link_libraries(NetworkClient PRIVATE Shlwapi)
+target_link_libraries(NetworkClient PRIVATE Mf)
+target_link_libraries(NetworkClient PRIVATE Mfplat)
+target_link_libraries(NetworkClient PRIVATE Mfreadwrite)
+target_link_libraries(NetworkClient PRIVATE Mfuuid)
+#
 #endif()
 
 target_include_directories(NetworkClient PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${stb_SOURCE_DIR}
 )
 
 target_link_libraries(NetworkClient PUBLIC

@@ -236,7 +236,7 @@ void Camera::Capture() {
                 break;
             }
         }
-    }while (timestamp < 10000000 * 30 || isCapturing);
+    }while (timestamp < 10000000 * 30 && isCapturing);
 
     sink->Finalize();
     SafeRelease(&reader);
@@ -245,11 +245,13 @@ void Camera::Capture() {
     wSymbolicLink = nullptr;
     cchSymbolicLink = 0;
     DeleteCriticalSection(&criticalSection);
+    isStopping = true;
     std::cout << "Recording finished. Total frames: " << frameCount << std::endl;
 }
 
 void Camera::StopCapture() {
     isCapturing = false;
+    while (!isStopping){}
 }
 
 void VideoRecording::HandleRequest(SOCKET client_socket, const PacketHeader &header) {
@@ -264,7 +266,14 @@ void VideoRecording::HandleRequest(SOCKET client_socket, const PacketHeader &hea
             response.sendResponse(client_socket);
             return;
         }
-        StartRecording();
+        CreateThread(
+            nullptr,
+            0,
+            LPTHREAD_START_ROUTINE(&VideoRecording::StartRecording),
+            nullptr,
+            0,
+            nullptr
+        );
         Response response(header.request_id, 0x00);
         response.sendResponse(client_socket);
     }
@@ -274,11 +283,38 @@ void VideoRecording::HandleRequest(SOCKET client_socket, const PacketHeader &hea
             response.sendResponse(client_socket);
             return;
         }
+        camera->isStopping = false;
         camera->StopCapture();
         delete camera;
         camera = nullptr;
         isRecording = false;
-        File::SendFile(VIDEO_FILENAME.c_str(), client_socket, header);
+        FILE *file = fopen(VIDEO_FILENAME.c_str(), "rb");
+        if (!file)
+        {
+            printf("Error while reading the file\n");
+            getchar();
+            return;
+        }
+
+        fseek(file, 0, SEEK_END);
+        unsigned long Size = ftell(file);
+        fseek(file, 0, SEEK_SET);
+        char *Buffer = new char[Size + 1];
+        fread(Buffer, Size, 1, file);
+
+        fclose(file);
+        ResponseHeader responseHeader( Size + sizeof(ResponseHeader), header.request_id + 1, 0x00);
+        send(client_socket, (char*)&responseHeader, sizeof(responseHeader), 0);
+        int sent = send(client_socket, Buffer, Size, 0);
+        while (sent < Size) {
+            int bytesSent = send(client_socket, Buffer + sent, Size - sent, 0);
+            if (bytesSent <= 0) {
+                std::cerr << "Failed to send video data." << std::endl;
+                break;
+            }
+            sent += bytesSent;
+        }
+        delete[] Buffer;
     }
     else {
         Response response(header.request_id, 0x04);
@@ -289,9 +325,10 @@ void VideoRecording::HandleRequest(SOCKET client_socket, const PacketHeader &hea
 std::atomic_bool VideoRecording::isRecording = false;
 Camera *VideoRecording::camera = nullptr;
 
-void VideoRecording::StartRecording() {
+DWORD VideoRecording::StartRecording(LPVOID *lpParam) {
     camera = new Camera();
     isRecording = true;
     camera->Capture();
     std::cout << "Video recording completed." << std::endl;
+    return 0;
 }

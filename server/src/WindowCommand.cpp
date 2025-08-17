@@ -1,4 +1,8 @@
 #include "WindowCommand.hpp"
+
+#include <fstream>
+
+#include "File.hpp"
 // void WindowCommand::SaveBitmapToFile(HBITMAP HBitmap, const PacketHeader& header)
 // {
 //     using namespace Gdiplus;
@@ -76,9 +80,9 @@ void WindowCommand::ScreenShot(SOCKET& client_socket,const PacketHeader& header)
 
     //SaveBitmapToFile(hBitmap,header);
     std::string message = GetDIBitsBMP(hBitmap,width,height);
-    Response res(header.request_id + 1, 0x00);
-    res.setMessage(message);
-    res.sendResponse(client_socket);
+    ResponseHeader responseHeader{uint32_t(sizeof(ResponseHeader) + message.size()), uint16_t(header.request_id + 1), 0x00};
+    send(client_socket, reinterpret_cast<const char*>(&responseHeader), sizeof(responseHeader), 0);
+    send(client_socket, message.data(), message.size(), 0);
     DeleteObject(hBitmap);
     DeleteDC(hCaptureDC);
     ReleaseDC(hDesktopWnd, hDesktopDC);
