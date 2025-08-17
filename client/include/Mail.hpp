@@ -22,8 +22,8 @@ struct MailAttachment {
 };
 
 struct tmp {
-    int id;
     std::string to;
+    std::string content;
 };
 
 class MailService {
@@ -57,7 +57,7 @@ public:
 
     static void CleanUpCURL();
 
-    static void HandleMailCommand(int mailId, std::string to);
+    static void HandleMailCommand(int mailId);
 
     static void Response(const std::string &to, const std::string &body, MailAttachment *attachment);
 

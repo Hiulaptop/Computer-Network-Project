@@ -103,15 +103,10 @@ int FileFeature::requestingFeature(RequestParam rParam) {
         return returnValue = -1;
     }
     if (rParam.type == 0) {
-        if (saveFilePath == "") {
-            HRESULT hr = openSaveAsDialog(currentSelectedFile);
-            if (FAILED(hr)) {
-                std::cerr << "Failed to open save as dialog." << std::endl;
-                closesocket(sock);
-                return returnValue = -1;
-            }
-        }
-        sendRequest(sock, rParam.type, (currentDirectory / currentSelectedFile).string().size(),
+        if (rParam.size != 0)
+            sendRequest(sock, rParam.type, rParam.size, rParam.data);
+        else
+            sendRequest(sock, rParam.type, (currentDirectory / currentSelectedFile).string().size(),
                     (currentDirectory / currentSelectedFile).string().c_str());
         int responseSize = 0;
         char *responseData = nullptr;
@@ -136,7 +131,10 @@ int FileFeature::requestingFeature(RequestParam rParam) {
         if (currentDirectory == "") {
             currentDirectory = "C:\\";
         }
-        sendRequest(sock, rParam.type, currentDirectory.string().size(), currentDirectory.string().c_str());
+        if (rParam.size == 0)
+            sendRequest(sock, rParam.type, currentDirectory.string().size(), currentDirectory.string().c_str());
+        else
+            sendRequest(sock, rParam.type, rParam.size, rParam.data);
         int responseSize = 0;
         char *responseData = nullptr;
         int res = receiveResponse(sock, responseSize, &responseData);

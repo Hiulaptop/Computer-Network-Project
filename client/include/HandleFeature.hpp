@@ -204,7 +204,11 @@ public:
     std::string fromAllNode() {
         std::string result;
         for (const auto &pair: m_allNodes) {
-            result += std::to_string(pair.second->PID) + ' ' + *pair.second->Name + ' ' + std::to_string(pair.second->ParentPID) +' ' + std::to_string(pair.second->MemoryUsage) + ' ' + std::to_string(pair.second->CPUTimeUser)+ "\n";
+            result += std::to_string(pair.second->PID) + ' ';
+            for (int i = 0; pair.second->Name[i] != '\0'; ++i) {
+                result += pair.second->Name[i];
+            }
+            result += ' ' + std::to_string(pair.second->ParentPID) +' ' + std::to_string(pair.second->MemoryUsage) + ' ' + std::to_string(pair.second->CPUTimeUser)+ "\n";
         }
         return result;
     }
