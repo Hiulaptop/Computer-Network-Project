@@ -4,6 +4,7 @@
 #include <ws2tcpip.h>
 
 #include "HandleFeature.hpp"
+#include "Mail.hpp"
 #include "UICore.hpp"
 
 int main() {
@@ -24,7 +25,7 @@ int main() {
         WSACleanup();
         return 1;
     }
-
+    MailService::Init("c2c.server.mmt@gmail.com", "thsf taeu xfjw lnqq", "curl-ca-bundle.crt");
     Core core;
     core.Init();
     core.Start();

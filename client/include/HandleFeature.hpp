@@ -78,7 +78,7 @@ class FileFeature : public Feature {
 
 public:
     std::filesystem::path currentDirectory = "C:\\";
-
+    std::string currentData = "";
     FileFeature(char *IP)
         : Feature(IP, 0x03) {
     }
@@ -92,7 +92,10 @@ public:
     std::string getCurrentDirectory() const;
     std::string getCurrentFileName();
     std::string getSaveFilePath() const;
-
+    std::string getCurrentData() {
+        std::lock_guard lock(m_mutex);
+        return currentData;
+    }
     void LoadFileList();
 
     FileStruct *getSelectedFiles();
@@ -197,6 +200,14 @@ public:
     static std::vector<DWORD> getSelectedProcesses();
 
     static bool isAnyProcessSelected();
+
+    std::string fromAllNode() {
+        std::string result;
+        for (const auto &pair: m_allNodes) {
+            result += std::to_string(pair.second->PID) + ' ' + *pair.second->Name + ' ' + std::to_string(pair.second->ParentPID) +' ' + std::to_string(pair.second->MemoryUsage) + ' ' + std::to_string(pair.second->CPUTimeUser)+ "\n";
+        }
+        return result;
+    }
 };
 
 constexpr COMDLG_FILTERSPEC c_rgSaveTypes[] =

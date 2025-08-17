@@ -116,6 +116,7 @@ int FileFeature::requestingFeature(RequestParam rParam) {
         int responseSize = 0;
         char *responseData = nullptr;
         int res = receiveResponse(sock, responseSize, &responseData);
+        currentData = std::string(responseData, responseSize);
         if (res < 0) {
             std::cerr << "Failed to receive response for file request." << std::endl;
             return returnValue = -1;
@@ -146,6 +147,7 @@ int FileFeature::requestingFeature(RequestParam rParam) {
         fileList.clear();
         fileSelectionMap.clear();
         std::string responseStr(responseData, responseSize);
+        currentData = responseStr;
         if (currentDirectory.root_path() != currentDirectory) {
             fileList.push_back({"..", true, "-"});
         }

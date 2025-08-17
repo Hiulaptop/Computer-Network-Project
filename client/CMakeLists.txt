@@ -4,7 +4,7 @@ project(NetworkClient)
 
 set(CMAKE_CXX_STANDARD 23) # Enable the C++23 standard
 set(IMGUI_DEFINE_MATH_OPERATORS)
-
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 include(FetchContent)
 
 FetchContent_Declare(imgui_source
@@ -132,4 +132,15 @@ target_include_directories(NetworkClient PUBLIC
 
 target_link_libraries(NetworkClient PUBLIC
         ClientFeature
+)
+
+set(CABUNDLE_LOC ${CMAKE_CURRENT_SOURCE_DIR}/external/curl-8.15.0_4-win64-mingw/bin/curl-ca-bundle.crt)
+set(CABUNDLE_RUNTIME_LOC ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/curl-ca-bundle.crt)
+
+add_custom_command(
+        TARGET NetworkClient POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CABUNDLE_LOC}"
+        "${CABUNDLE_RUNTIME_LOC}"
+        COMMENT "Copying CA bundle to output directory"
 )
