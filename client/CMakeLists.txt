@@ -5,6 +5,7 @@ project(NetworkClient)
 set(CMAKE_CXX_STANDARD 23) # Enable the C++23 standard
 set(IMGUI_DEFINE_MATH_OPERATORS)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_TLS_VERIFY OFF)
 include(FetchContent)
 
 FetchContent_Declare(imgui_source
