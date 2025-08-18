@@ -79,7 +79,7 @@ HRESULT Camera::CreateMediaSink() {
     if (SUCCEEDED(hr))
         hr = pInputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
     if (SUCCEEDED(hr))
-        hr = pInputType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12);
+        hr = pInputType->SetGUID(MF_MT_SUBTYPE, this->m_MachineGuid);
     if (SUCCEEDED(hr))
         hr = pInputType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
     if (SUCCEEDED(hr))
@@ -154,7 +154,10 @@ HRESULT Camera::IsMediaTypeSupported(IMFMediaType *mediaType) {
     if (FAILED(hr)) return hr;
     this->videoFormat = mediaType;
     if (subtype == MFVideoFormat_RGB32 || subtype == MFVideoFormat_RGB24 || subtype == MFVideoFormat_YUY2 || subtype == MFVideoFormat_NV12)
+    {
+        this->m_MachineGuid = subtype;
         return S_OK;
+    }
     return S_FALSE;
 }
 

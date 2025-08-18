@@ -20,8 +20,9 @@ public:
     int frameCount = 0;
     const int FRAME_RATE = 30;
     const LONGLONG FRAME_DURATION = 10000000 / FRAME_RATE;
-    const UINT32 VIDEO_BITRATE = 8000000;
+    const UINT32 VIDEO_BITRATE = 80000;
     const GUID VIDEO_ENCODING_FORMAT = MFVideoFormat_H264;
+    GUID m_MachineGuid = GUID_NULL;
     IMFSourceReader* reader = nullptr;
     IMFSinkWriter* sink = nullptr;
     IMFMediaType* videoFormat = nullptr;
