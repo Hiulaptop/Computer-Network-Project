@@ -236,7 +236,7 @@ void Camera::Capture() {
                 break;
             }
         }
-    }while (timestamp < 10000000 * 30 && isCapturing);
+    }while (isCapturing);
 
     sink->Finalize();
     SafeRelease(&reader);
